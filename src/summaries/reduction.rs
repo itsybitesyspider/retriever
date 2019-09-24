@@ -215,10 +215,11 @@ where
         ItemKey: ValidKey,
     {
         assert_eq!(
-      self.parent_id,
-      storage.id(),
-      "Id mismatch: a Reduction may only be used with it's parent Storage, never any other Storage"
-    );
+            self.parent_id,
+            storage.id(),
+            "Id mismatch: a Reduction may only be used with it's parent Storage, never any other Storage"
+        );
+
         self.gc(storage);
 
         let chunkwise_reductions = &mut self.chunkwise_reductions;
@@ -247,5 +248,37 @@ where
         });
 
         self.reduction.update(&self.chunkwise_summaries)
+    }
+
+    /// As `summarize`, however, this version only performs the reduction on a single chunk
+    /// and returns the Summary of that chunk's elements alone.
+    pub fn summarize_chunk<ItemKey>(
+        &mut self,
+        storage: &Storage<ChunkKey, ItemKey, Element>,
+        chunk_key: &ChunkKey,
+    ) -> Option<&Summary>
+    where
+        Element: Record<ChunkKey, ItemKey>,
+        ItemKey: ValidKey,
+    {
+        assert_eq!(
+            self.parent_id,
+            storage.id(),
+            "Id mismatch: a Reduction may only be used with it's parent Storage, never any other Storage"
+        );
+
+        self.gc(storage);
+
+        let chunkwise_reductions = &mut self.chunkwise_reductions;
+        let group_size = self.group_size;
+        let rules = &self.rules;
+
+        let idx = storage.internal_idx_of(chunk_key)?;
+        let internal_storage = storage.internal_mrvec()[idx].internal_mrvec();
+
+        chunkwise_reductions
+            .entry(chunk_key.clone())
+            .or_insert_with(|| Reduce::new(internal_storage, group_size, rules.clone()))
+            .update(&internal_storage)
     }
 }
