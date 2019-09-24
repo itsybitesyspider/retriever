@@ -8,6 +8,7 @@ use crate::types::arc_iter::ArcIter;
 use crate::types::editor::Editor;
 use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -36,22 +37,23 @@ where
     /// ```
     /// use retriever::*;
     ///
-    /// let mut storage : Storage<(), &'static str, _> = Storage::new();
+    /// let mut storage : Storage<u64, &'static str, _> = Storage::new();
     ///
     /// // In a later example, we'll encourage jroberts to use a stronger password.
-    /// let username = "jroberts";
-    /// let password = "PASSWORD!5";
-    /// let admin = "true";
+    /// let user_id = 7;
+    /// let username = String::from("jroberts");
+    /// let password = String::from("PASSWORD!5");
+    /// let admin = String::from("true");
     ///
     /// // For this example we choose a storage that represents some account information for a
     /// // single user. The tuple (Key, Value) type has a built-in impl for Record.
-    /// storage.add(("username", username));
-    /// storage.add(("password", password));
-    /// storage.add(("admin", admin));
+    /// storage.add((user_id, "username", username.clone()));
+    /// storage.add((user_id, "password", password.clone()));
+    /// storage.add((user_id, "admin", admin.clone()));
     ///
     /// // We can lookup the value of the "admin" field using it's item key.
-    /// let is_admin = storage.get(&ID.item("admin"));
-    /// assert_eq!(is_admin, Some(&("admin","true")));
+    /// let is_admin = storage.get(&ID.chunk(user_id).item("admin"));
+    /// assert_eq!(is_admin, Some(&(7, "admin",admin.clone())));
     ///
     /// # storage.validate();
     /// ```
@@ -611,7 +613,11 @@ where
         }
     }
 
-    pub(crate) fn internal_idx_of(&self, chunk_key: &ChunkKey) -> Option<usize> {
+    pub(crate) fn internal_idx_of<Q>(&self, chunk_key: &Q) -> Option<usize>
+    where
+        Q: Hash + Eq,
+        ChunkKey: Borrow<Q>,
+    {
         self.index.get(chunk_key).cloned()
     }
 

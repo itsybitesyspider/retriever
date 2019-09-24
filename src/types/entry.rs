@@ -40,19 +40,20 @@ where
         F: FnOnce() -> Element,
     {
         if self.idx.is_none() {
-            let new_value = f();
+            let new_value: Element = f();
+            let new_chunk_key: Cow<ChunkKey> = new_value.chunk_key();
+            let old_chunk_key: Cow<ChunkKey> = Record::<ChunkKey, ItemKey>::chunk_key(&self.id);
+            let new_item_key: Cow<ItemKey> = new_value.item_key();
+            let old_item_key: Cow<ItemKey> = Record::<ChunkKey, ItemKey>::item_key(&self.id);
             assert_eq!(
-                new_value.chunk_key(),
-                self.id.chunk_key(),
+                new_chunk_key, old_chunk_key,
                 "entry: inserted chunk key does not match entry chunk key"
             );
             assert_eq!(
-                new_value.item_key(),
-                self.id.item_key(),
+                new_item_key, old_item_key,
                 "entry: inserted item key does not match entry item key"
             );
-            self.storage.add(new_value);
-            self.idx = self.storage.internal_idx_of(&self.id.item_key());
+            self.idx = Some(self.storage.add(new_value));
         }
 
         self

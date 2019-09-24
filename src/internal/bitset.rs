@@ -67,7 +67,7 @@ impl Bitset {
         let ones = &mut self.ones;
 
         Arc::make_mut(bits)
-            .entry(&Id(chunk_idx, idx))
+            .entry(&Id::new(chunk_idx, idx))
             .and_modify(|x| {
                 if x.1 & value == 0 {
                     *ones += 1;
@@ -84,7 +84,7 @@ impl Bitset {
         let ones = &mut self.ones;
 
         Arc::make_mut(bits)
-            .entry(&Id(chunk_idx, idx))
+            .entry(&Id::new(chunk_idx, idx))
             .and_modify(|x| {
                 if x.1 & value != 0 {
                     *ones += 1;
@@ -99,7 +99,7 @@ impl Bitset {
         let (chunk_idx, idx, value) = Bitfield::key(i);
 
         self.bits
-            .get(&Id(chunk_idx, idx))
+            .get(&Id::new(chunk_idx, idx))
             .map(|x| x.1)
             .unwrap_or(0b0)
             & value

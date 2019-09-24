@@ -8,6 +8,7 @@ use crate::traits::valid_key::ValidKey;
 use crate::types::editor::Editor;
 use std::borrow::Borrow;
 use std::collections::HashMap;
+use std::hash::Hash;
 
 /// A chunk of storage containing all elements with a common primary key
 #[derive(Clone)]
@@ -43,14 +44,15 @@ where
         &self.data
     }
 
-    pub(crate) fn add(&mut self, element: Element) -> &mut Self {
+    pub(crate) fn add(&mut self, element: Element) -> usize {
         let chunk_key = element.chunk_key();
         let item_key = element.item_key();
         assert_eq!(&self.chunk_key, chunk_key.borrow());
         let old_key = self.index.insert(item_key.into_owned(), self.data.len());
         assert!(old_key.is_none(), "duplicate item key within chunk");
+        let idx = self.data.len();
         self.data.push(element);
-        self
+        idx
     }
 
     pub(crate) fn get_idx(&self, idx: usize) -> &Element {
@@ -165,7 +167,11 @@ where
         result
     }
 
-    pub(crate) fn internal_idx_of(&self, item_key: &ItemKey) -> Option<usize> {
+    pub(crate) fn internal_idx_of<Q>(&self, item_key: &Q) -> Option<usize>
+    where
+        Q: Hash + Eq,
+        ItemKey: Borrow<Q>,
+    {
         self.index.get(item_key).cloned()
     }
 
