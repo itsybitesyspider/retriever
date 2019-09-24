@@ -217,9 +217,10 @@ where
     fn item_idxs(
         &self,
         chunk_key: &ChunkKey,
-        _chunk_storage: &ChunkStorage<ChunkKey, ItemKey, Element>,
+        chunk_storage: &ChunkStorage<ChunkKey, ItemKey, Element>,
     ) -> IdxSet {
-        let filter: Option<Bitset> = self
+        let parent_idxs = self.query.item_idxs(chunk_key, chunk_storage);
+        let ours_idxs: Option<Bitset> = self
             .secondary_index
             .read()
             .unwrap()
@@ -228,7 +229,7 @@ where
             .and_then(|map_summarize| map_summarize.peek().reverse_index.get(self.index_key))
             .cloned();
 
-        IdxSet::from(filter)
+        IdxSet::intersection(parent_idxs, IdxSet::from(ours_idxs))
     }
 
     fn test(&self, element: &Element) -> bool {
@@ -281,17 +282,17 @@ mod test {
         storage.validate();
         by_color.validate(&storage);
 
-        storage.remove(Everything.matching(&mut by_color, "orange"));
+        storage.remove(Everything.matching(&mut by_color, "orange"), std::mem::drop);
 
         storage.validate();
         by_color.validate(&storage);
 
-        storage.remove(Everything.matching(&mut by_color, "white"));
+        storage.remove(Everything.matching(&mut by_color, "white"), std::mem::drop);
 
         storage.validate();
         by_color.validate(&storage);
 
-        storage.remove(Everything.matching(&mut by_color, "black"));
+        storage.remove(Everything.matching(&mut by_color, "black"), std::mem::drop);
 
         storage.validate();
         by_color.validate(&storage);

@@ -1,5 +1,3 @@
-use crate::queries::everything::Everything;
-use crate::traits::query::Query;
 use crate::traits::record::Record;
 use crate::types::arc_iter::ArcIter;
 use crate::types::id::Id;
@@ -26,6 +24,7 @@ pub(crate) struct BitfieldIter {
 #[derive(Clone)]
 pub(crate) struct Bitset {
     ones: usize,
+    sorted: bool,
     bits: Arc<Storage<usize, usize, Bitfield>>,
 }
 
@@ -62,6 +61,8 @@ impl Bitset {
 
     /// Set the specific bit position in this Bitset
     pub fn set(&mut self, i: usize) {
+        self.sorted = false;
+
         let (chunk_idx, idx, value) = Bitfield::key(i);
         let bits = &mut self.bits;
         let ones = &mut self.ones;
@@ -79,6 +80,8 @@ impl Bitset {
 
     /// Set the specific bit position in this Bitset
     pub fn unset(&mut self, i: usize) {
+        self.sorted = false;
+
         let (chunk_idx, idx, value) = Bitfield::key(i);
         let bits = &mut self.bits;
         let ones = &mut self.ones;
@@ -110,33 +113,12 @@ impl Bitset {
     pub fn iter(&self) -> <Self as IntoIterator>::IntoIter {
         Storage::iter_arc(Arc::clone(&self.bits)).flatten()
     }
-
-    pub fn intersection(mut self, mut other: Self) -> Self {
-        if self.len() > other.len() {
-            std::mem::swap(&mut self, &mut other);
-        }
-
-        let bits = Arc::make_mut(&mut self.bits);
-
-        bits.modify(Everything, |mut bitfield| {
-            if let Some(other_bitfield) = other.bits.get(bitfield.id()) {
-                if bitfield.get().1 & other_bitfield.1 != bitfield.get().1 {
-                    bitfield.get_mut().1 &= other_bitfield.1;
-                }
-            } else {
-                bitfield.get_mut().1 = 0;
-            }
-        });
-
-        bits.remove(Everything.filter(|bitfield: &Bitfield| bitfield.1 == 0));
-
-        self
-    }
 }
 
 impl Default for Bitset {
     fn default() -> Self {
         Bitset {
+            sorted: true,
             ones: 0,
             bits: Arc::new(Storage::new()),
         }

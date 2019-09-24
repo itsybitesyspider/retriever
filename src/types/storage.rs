@@ -491,7 +491,7 @@ where
         }
     }
 
-    /// Discard all of the specified elements from this storage.
+    /// Remove all of the specified elements from this storage.
     ///
     /// ```
     /// use retriever::*;
@@ -532,11 +532,11 @@ where
     ///   msg: String::from("Asked doctor to check cat for space fleas"),
     /// });
     ///
-    /// // Use the 'discard' operation to search for any embarassing log entries
-    /// // and discard them.
-    /// storage.discard(Everything.filter(|log_entry: &LogEntry| {
+    /// // Use the 'remove' operation to search for any embarassing log entries
+    /// // and drop them.
+    /// storage.remove(Everything.filter(|log_entry: &LogEntry| {
     ///   log_entry.msg.contains("illegal")
-    /// }));
+    /// }), std::mem::drop);
     ///
     /// assert!(
     ///   storage
@@ -549,33 +549,17 @@ where
     ///
     /// # storage.validate();
     /// ```
-    pub fn discard<Q>(&mut self, mut query: Q)
+    pub fn remove<Q, F>(&mut self, mut query: Q, f: F)
     where
+        F: Fn(Element),
         Q: Query<ChunkKey, ItemKey, Element>,
     {
         for idx in query.chunk_idxs(self).iter() {
             self.dirty(idx);
-            self.chunks[idx].discard(&mut query);
+            self.chunks[idx].remove(&mut query, &f);
         }
 
         self.clean();
-    }
-
-    /// Remove and return all of the specified elements from this storage.
-    pub fn remove<Q>(&mut self, mut query: Q) -> Vec<Vec<Element>>
-    where
-        Q: Query<ChunkKey, ItemKey, Element>,
-    {
-        let mut result = Vec::new();
-
-        for idx in query.chunk_idxs(self).iter() {
-            self.dirty(idx);
-            result.push(self.chunks[idx].remove(&mut query));
-        }
-
-        self.clean();
-
-        result
     }
 
     /// List all chunks
@@ -673,6 +657,7 @@ where
 
 #[cfg(test)]
 mod test {
+    use crate::queries::chunks::Chunks;
     use crate::queries::everything::Everything;
     use crate::queries::secondary_index::SecondaryIndex;
     use crate::*;
@@ -726,5 +711,70 @@ mod test {
             4,
             storage.query(&Everything.matching(&mut index, &0)).count()
         );
+    }
+
+    #[test]
+    fn test_editor() {
+        let mut storage: Storage<u64, u64, X> = Storage::new();
+        storage.add(X(0x101, 0x101));
+        storage.add(X(0x202, 0x101));
+        storage.add(X(0x111, 0x101));
+
+        storage.modify(Id(0x0, 0x202), |mut editor| {
+            assert_eq!(&Id(&0x0, &0x202), editor.id());
+            assert_eq!(&X(0x202, 0x101), editor.get());
+            editor.get_mut().1 = 0x102;
+            assert_eq!(&X(0x202, 0x102), editor.get());
+        });
+    }
+
+    #[test]
+    fn test_filter() {
+        let mut storage: Storage<u64, u64, X> = Storage::new();
+        storage.add(X(0x101, 0x101));
+        storage.add(X(0x202, 0x999));
+        storage.add(X(0x111, 0x111));
+
+        storage.remove(Chunks(&[0x0]).filter(|x: &X| x.1 == 0x999), std::mem::drop);
+        assert_eq!(2, storage.iter().count());
+        assert!(storage.get(&Id(0x0, 0x101)).is_some());
+        assert!(storage.get(&Id(0x1, 0x111)).is_some());
+        assert!(storage.get(&Id(0x0, 0x202)).is_none());
+    }
+
+    #[test]
+    fn test_index_intersections() {
+        let mut storage: Storage<u64, u64, X> = Storage::new();
+
+        let mut even_odd: SecondaryIndex<u64, X, Option<bool>, bool> =
+            SecondaryIndex::new_expensive(&storage, |x: &X| Some(x.1 % 2 == 1));
+
+        let mut small: SecondaryIndex<u64, X, Option<bool>, bool> =
+            SecondaryIndex::new_expensive(&storage, |x: &X| Some(x.1 < 0x600));
+
+        storage.add(X(0x000, 0x000));
+        storage.add(X(0x101, 0x111));
+        storage.add(X(0x202, 0x222));
+        storage.add(X(0x303, 0x333));
+        storage.add(X(0x404, 0x444));
+        storage.add(X(0x505, 0x555));
+        storage.add(X(0x606, 0x666));
+        storage.add(X(0x707, 0x777));
+
+        let small_odds: Vec<X> = storage
+            .query(
+                &Everything
+                    .matching(&mut even_odd, &true)
+                    .matching(&mut small, &true),
+            )
+            .cloned()
+            .collect();
+
+        assert_eq!(3, small_odds.len());
+        assert!(small_odds.contains(&X(0x101, 0x111)));
+        assert!(small_odds.contains(&X(0x303, 0x333)));
+        assert!(small_odds.contains(&X(0x505, 0x555)));
+        assert!(!small_odds.contains(&X(0x202, 0x222)));
+        assert!(!small_odds.contains(&X(0x707, 0x777)));
     }
 }

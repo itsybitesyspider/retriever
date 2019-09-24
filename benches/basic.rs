@@ -133,7 +133,7 @@ fn bench_modify_even_integers(storage: &mut Storage<u64, u64, X>) {
 }
 
 fn bench_remove_even_integers(storage: &mut Storage<u64, u64, X>) {
-    storage.remove(Everything.filter(|x: &X| x.1 % 2 == 0));
+    storage.remove(Everything.filter(|x: &X| x.1 % 2 == 0), std::mem::drop);
 
     let result: Vec<X> = storage
         .query(&Everything.filter(|x: &X| x.1 % 2 == 0))
@@ -143,7 +143,7 @@ fn bench_remove_even_integers(storage: &mut Storage<u64, u64, X>) {
 }
 
 fn bench_discard_even_integers(storage: &mut Storage<u64, u64, X>) {
-    storage.discard(Everything.filter(|x: &X| x.1 % 2 == 0));
+    storage.remove(Everything.filter(|x: &X| x.1 % 2 == 0), std::mem::drop);
 
     let result: Vec<X> = storage
         .query(&Everything.filter(|x: &X| x.1 % 2 == 0))

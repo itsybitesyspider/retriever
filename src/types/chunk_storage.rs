@@ -122,36 +122,29 @@ where
         }
     }
 
-    pub(crate) fn discard<'a, Q>(&'a mut self, query: &'a mut Q)
+    pub(crate) fn remove<'a, Q, F>(&'a mut self, query: &'a mut Q, f: &F)
     where
+        F: Fn(Element),
         Q: Query<ChunkKey, ItemKey, Element>,
     {
         let mut last_removed_idx = self.data.len();
-        for idx in query.item_idxs(&self.chunk_key, &self).iter().rev() {
-            if query.test(&self.data[idx]) {
-                assert!(idx < last_removed_idx);
-                last_removed_idx = idx;
-                std::mem::drop(self.remove_idx(idx));
-            }
-        }
-    }
-
-    pub(crate) fn remove<'a, Q>(&'a mut self, query: &'a mut Q) -> Vec<Element>
-    where
-        Q: Query<ChunkKey, ItemKey, Element>,
-    {
         let idxs = query.item_idxs(&self.chunk_key, &self);
-        let mut result = Vec::with_capacity(idxs.len());
-        let mut last_removed_idx = self.data.len();
-        for idx in query.item_idxs(&self.chunk_key, &self).iter().rev() {
-            if query.test(&self.data[idx]) {
-                assert!(idx < last_removed_idx);
-                last_removed_idx = idx;
-                result.push(self.remove_idx(idx));
+
+        if idxs.is_sorted() {
+            for idx in idxs.iter().rev() {
+                if query.test(&self.data[idx]) {
+                    assert!(idx < last_removed_idx);
+                    last_removed_idx = idx;
+                    f(self.remove_idx(idx));
+                }
+            }
+        } else {
+            let mut idxs: Vec<usize> = idxs.iter().collect();
+            idxs.sort_unstable();
+            for idx in idxs.iter().rev() {
+                f(self.remove_idx(*idx));
             }
         }
-
-        result
     }
 
     /// Remove the specified element and return it
