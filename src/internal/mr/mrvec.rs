@@ -1,4 +1,4 @@
-#[cfg(feature = "use_log")]
+#[cfg(feature = "log")]
 use log::warn;
 
 use std::ops::{Index, IndexMut};
@@ -45,24 +45,12 @@ impl<T> MrVec<T> {
 
     /// Touch an element of this MrVec, but index.
     pub(crate) fn touch(&mut self, i: usize) -> &mut Self {
-        while self.changed_vec.counts_4.len() <= i / STRIDE_4 {
-            self.changed_vec.counts_4.push(0);
-        }
-
-        while self.changed_vec.counts_3.len() <= i / STRIDE_3 {
-            self.changed_vec.counts_3.push(0);
-        }
-
-        while self.changed_vec.counts_2.len() <= i / STRIDE_2 {
-            self.changed_vec.counts_2.push(0);
-        }
-
-        while self.changed_vec.counts_1.len() <= i / STRIDE_1 {
-            self.changed_vec.counts_1.push(0);
-        }
-
-        while self.changed_vec.counts_0.len() <= i / STRIDE_0 {
-            self.changed_vec.counts_0.push(0);
+        if i/STRIDE_0+1 > self.changed_vec.counts_0.len() {
+          self.changed_vec.counts_0.resize(self.changed_vec.counts_0.len().max(i/STRIDE_0+1), 0);
+          self.changed_vec.counts_1.resize(self.changed_vec.counts_1.len().max(i/STRIDE_1+1), 0);
+          self.changed_vec.counts_2.resize(self.changed_vec.counts_2.len().max(i/STRIDE_2+1), 0);
+          self.changed_vec.counts_3.resize(self.changed_vec.counts_3.len().max(i/STRIDE_3+1), 0);
+          self.changed_vec.counts_4.resize(self.changed_vec.counts_4.len().max(i/STRIDE_4+1), 0);
         }
 
         self.changed_vec.count += 1;
@@ -102,7 +90,7 @@ impl<T> MrVec<T> {
     }
 
     fn reset(&mut self) {
-        #[cfg(feature = "use_log")]
+        #[cfg(feature = "log")]
         {
             let warning_msg = "Retriever: Forced to reset a reduction vector. This sometimes happens in normal usage, but frequent resets may represent incorrect usage and result in poor performance.";
             warn!("{}", warning_msg);
@@ -431,7 +419,7 @@ mod test {
     fn test_map_reduce_with_changing_source_should_no_longer_panic() {
         use super::*;
 
-        #[cfg(feature = "use_log")]
+        #[cfg(feature = "log")]
         let _ = simple_logger::init();
 
         let mut v = MrVec::default();

@@ -16,6 +16,12 @@ where
     Element: Record<ChunkKey, ItemKey>,
 {
     fn chunk_idxs(&self, storage: &Storage<ChunkKey, ItemKey, Element>) -> IdxSet {
+        if self.0.is_empty() {
+            return IdxSet::nothing();
+        } else if self.0.len() == 1 {
+            return IdxSet::from(storage.internal_idx_of(&self.0[0]));
+        }
+
         let bitset: Bitset = self
             .0
             .iter()

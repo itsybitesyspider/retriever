@@ -139,7 +139,7 @@ where
                 }
             }
         } else {
-            let mut idxs: Vec<usize> = idxs.iter().collect();
+            let mut idxs: Vec<usize> = idxs.iter().rev().collect();
             idxs.sort_unstable();
             for idx in idxs.iter().rev() {
                 f(self.remove_idx(*idx));

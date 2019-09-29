@@ -20,6 +20,11 @@ enum IdxIterEnum {
 }
 
 impl IdxSet {
+    pub fn nothing() -> Self {
+        IdxSet(IdxSetEnum::Nothing)
+    }
+
+    #[inline(always)]
     pub fn contains(&self, idx: usize) -> bool {
         match &self.0 {
             IdxSetEnum::Nothing => false,

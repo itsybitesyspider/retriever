@@ -24,7 +24,6 @@ pub(crate) struct BitfieldIter {
 #[derive(Clone)]
 pub(crate) struct Bitset {
     ones: usize,
-    sorted: bool,
     bits: Arc<Storage<usize, usize, Bitfield>>,
 }
 
@@ -61,8 +60,6 @@ impl Bitset {
 
     /// Set the specific bit position in this Bitset
     pub fn set(&mut self, i: usize) {
-        self.sorted = false;
-
         let (chunk_idx, idx, value) = Bitfield::key(i);
         let bits = &mut self.bits;
         let ones = &mut self.ones;
@@ -80,8 +77,6 @@ impl Bitset {
 
     /// Set the specific bit position in this Bitset
     pub fn unset(&mut self, i: usize) {
-        self.sorted = false;
-
         let (chunk_idx, idx, value) = Bitfield::key(i);
         let bits = &mut self.bits;
         let ones = &mut self.ones;
@@ -118,7 +113,6 @@ impl Bitset {
 impl Default for Bitset {
     fn default() -> Self {
         Bitset {
-            sorted: true,
             ones: 0,
             bits: Arc::new(Storage::new()),
         }
@@ -144,9 +138,7 @@ impl Iterator for BitfieldIter {
 
     #[inline]
     fn next(&mut self) -> Option<usize> {
-        while self.forward <= self.backward && (self.bits >> self.forward) & 0b1 == 0 {
-            self.forward += 1;
-        }
+        self.forward += (self.bits >> self.forward).trailing_zeros() as usize;
 
         if self.forward > self.backward {
             return None;
@@ -161,9 +153,7 @@ impl Iterator for BitfieldIter {
 impl DoubleEndedIterator for BitfieldIter {
     #[inline]
     fn next_back(&mut self) -> Option<usize> {
-        while self.forward <= self.backward && (self.bits >> self.backward) & 0b1 == 0 {
-            self.backward -= 1;
-        }
+        self.backward -= (self.bits << self.backward).leading_zeros() as usize;
 
         if self.forward > self.backward {
             return None;
@@ -244,8 +234,10 @@ mod test {
         assert_eq!(6, b.iter().count());
 
         let v: Vec<_> = b.iter().collect();
-
         assert_eq!(&v, &[19, 20, 21, 23, 24, 27]);
+
+        let rv: Vec<_> = b.iter().rev().collect();
+        assert_eq!(&rv, &[27, 24, 23, 21, 20, 19]);
     }
 
     #[test]
