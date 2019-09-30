@@ -16,7 +16,6 @@ pub(crate) struct Bitfield(usize, usize);
 pub(crate) struct BitfieldIter {
     idx: usize,
     forward: usize,
-    backward: usize,
     bits: usize,
 }
 
@@ -127,7 +126,6 @@ impl IntoIterator for Bitfield {
         BitfieldIter {
             idx: self.0 * BITS,
             forward: 0,
-            backward: BITS - 1,
             bits: self.1,
         }
     }
@@ -138,29 +136,18 @@ impl Iterator for BitfieldIter {
 
     #[inline]
     fn next(&mut self) -> Option<usize> {
+        if self.forward >= BITS {
+            return None;
+        }
+
         self.forward += (self.bits >> self.forward).trailing_zeros() as usize;
 
-        if self.forward > self.backward {
+        if self.forward >= BITS {
             return None;
         }
 
         let result = self.idx + self.forward;
         self.forward += 1;
-        Some(result)
-    }
-}
-
-impl DoubleEndedIterator for BitfieldIter {
-    #[inline]
-    fn next_back(&mut self) -> Option<usize> {
-        self.backward -= (self.bits << self.backward).leading_zeros() as usize;
-
-        if self.forward > self.backward {
-            return None;
-        }
-
-        let result = self.idx + self.backward;
-        self.backward += 1;
         Some(result)
     }
 }
@@ -189,6 +176,8 @@ impl FromIterator<usize> for Bitset {
 #[cfg(test)]
 mod test {
     use super::*;
+    use rand::Rng;
+    use std::collections::hash_set::HashSet;
 
     #[test]
     fn test_single_bit() {
@@ -235,9 +224,6 @@ mod test {
 
         let v: Vec<_> = b.iter().collect();
         assert_eq!(&v, &[19, 20, 21, 23, 24, 27]);
-
-        let rv: Vec<_> = b.iter().rev().collect();
-        assert_eq!(&rv, &[27, 24, 23, 21, 20, 19]);
     }
 
     #[test]
@@ -314,5 +300,33 @@ mod test {
         assert!(b.get(800_000_000));
 
         assert_eq!(29, b.iter().count());
+    }
+
+    #[test]
+    fn test_random() {
+        let mut b = Bitset::default();
+        let mut h = HashSet::new();
+
+        for _ in 0..1000 {
+          let x = rand::thread_rng().gen_range(0,10_000);
+          b.set(x);
+          h.insert(x);
+        }
+
+        for i in b.iter() {
+          assert!(h.contains(&i));
+        }
+
+        for i in h.iter() {
+          assert!(b.get(*i));
+        }
+
+        for i in h.iter() {
+          assert!(b.get(*i));
+        }
+
+        for x in 0..10_000 {
+          assert_eq!(b.get(x), h.contains(&x));
+        }
     }
 }

@@ -98,10 +98,8 @@ pub use crate::types::*;
 
 #[cfg(test)]
 mod test {
-    use std::iter::Once;
-use std::iter::once;
-use crate::summaries::reduction::Reduction;
-use crate::queries::chunks::Chunks;
+    use crate::summaries::reduction::Reduction;
+    use crate::queries::chunks::Chunks;
     use crate::queries::everything::Everything;
     use crate::queries::secondary_index::SecondaryIndex;
     use crate::*;

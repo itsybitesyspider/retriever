@@ -153,7 +153,7 @@ impl DoubleEndedIterator for IdxIter {
     fn next_back(&mut self) -> Option<usize> {
         let result = match &mut self.0 {
             IdxIterEnum::Range(range) => range.next_back(),
-            IdxIterEnum::Bitset(bs) => bs.next_back(),
+            IdxIterEnum::Bitset(_) => unimplemented!(),
         }?;
 
         if self.1.iter().any(|xs| !xs.contains(result)) {
