@@ -302,11 +302,7 @@ mod test {
         let mut index: SecondaryIndex<u64, X, Option<u64>, u64> = SecondaryIndex::new_expensive(
           &storage,
           |x: &X| {
-            if x.1 < 10 {
-              Some(x.1)
-            } else {
-              None
-            }
+            Some(x.1)
           });
 
         let k = 100_000;

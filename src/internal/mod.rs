@@ -1,5 +1,5 @@
 /// A compact bitset implementation
-pub(crate) mod bitset;
+pub(crate) mod bits;
 /// The hasher configuration
 pub(crate) mod hasher;
 /// Variously compact representations of a set of usize indexes

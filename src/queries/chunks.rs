@@ -1,4 +1,4 @@
-use crate::internal::bitset::Bitset;
+use crate::internal::bits::Bitset;
 use crate::internal::idxset::IdxSet;
 use crate::traits::query::Query;
 use crate::traits::record::Record;

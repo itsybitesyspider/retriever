@@ -1,4 +1,4 @@
-use crate::internal::bitset::Bitset;
+use crate::internal::bits::Bitset;
 use std::ops::Range;
 
 #[derive(Clone)]
