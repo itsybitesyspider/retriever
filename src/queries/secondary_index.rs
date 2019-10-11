@@ -1,6 +1,6 @@
 use crate::internal::bits::Bitset;
 use crate::internal::idxset::IdxSet;
-use crate::internal::mr::mrvec::MrVec;
+use crate::internal::mr::rvec::RVec;
 use crate::internal::mr::summarize::{Summarize, SummaryRules};
 use crate::traits::query::Query;
 use crate::traits::record::Record;
@@ -42,7 +42,7 @@ where
     for<'x> &'x IndexKeys: IntoIterator<Item = &'x IndexKey>,
 {
     parent_id: u64,
-    gc_chunk_list: MrVec<Option<ChunkKey>>,
+    gc_chunk_list: RVec<Option<ChunkKey>>,
     rules: Arc<SummaryRules<Element, IndexKeys, ChunkSecondaryIndex<IndexKey>>>,
     index: HashMap<
         ChunkKey,
@@ -74,7 +74,7 @@ where
     {
         SecondaryIndex {
             parent_id: storage.id(),
-            gc_chunk_list: MrVec::default(),
+            gc_chunk_list: RVec::default(),
             index: HashMap::with_hasher(crate::internal::hasher::HasherImpl::default()),
             rules: Arc::new(Self::indexing_rules(f)),
         }
@@ -133,7 +133,7 @@ where
     {
         let index = &mut self.index;
         let rules = &self.rules;
-        let internal_storage = chunk_storage.internal_mrvec();
+        let internal_storage = chunk_storage.internal_rvec();
 
         index
             .entry(chunk_key.clone())
@@ -208,7 +208,7 @@ where
                 .as_ref()
                 .cloned()
                 .expect("gc_chunk_list should not contain None immediately after gc");
-            secondary_index.update_chunk(&chunk_idx, &storage.internal_mrvec()[idx]);
+            secondary_index.update_chunk(&chunk_idx, &storage.internal_rvec()[idx]);
         }
 
         result

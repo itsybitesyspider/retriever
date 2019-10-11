@@ -1,5 +1,4 @@
 /// Iterator over an Arc containing a Storage.
-pub mod arc_iter;
 pub(crate) mod chunk_storage;
 pub(crate) mod editor;
 pub(crate) mod entry;

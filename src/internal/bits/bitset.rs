@@ -1,17 +1,17 @@
+use super::bitfield::*;
 use std::iter::Flatten;
 use std::iter::FromIterator;
-use super::bitfield::*;
 use std::sync::Arc;
 
 /// A sparse bitset
 #[derive(Clone)]
 pub(crate) struct Bitset {
-    bits: Arc<Vec<Bitfield>>
+    bits: Arc<Vec<Bitfield>>,
 }
 
 pub(crate) struct BitsetIter {
-  bits: Arc<Vec<Bitfield>>,
-  i: usize,
+    bits: Arc<Vec<Bitfield>>,
+    i: usize,
 }
 
 impl Bitset {
@@ -27,30 +27,28 @@ impl Bitset {
 
     /// Set the specific bit position in this Bitset
     pub fn set(&mut self, i: usize) {
-        match self.bits.binary_search_by_key(&(i/BITS),Bitfield::start) {
-          Ok(bidx) => {
-            Arc::make_mut(&mut self.bits)[bidx].set(i);
-          }
-          Err(bidx) => {
-            Arc::make_mut(&mut self.bits).insert(bidx,Bitfield::new(i));
-          }
+        match self.bits.binary_search_by_key(&(i / BITS), Bitfield::start) {
+            Ok(bidx) => {
+                Arc::make_mut(&mut self.bits)[bidx].set(i);
+            }
+            Err(bidx) => {
+                Arc::make_mut(&mut self.bits).insert(bidx, Bitfield::new(i));
+            }
         }
     }
 
     /// Set the specific bit position in this Bitset
     pub fn unset(&mut self, i: usize) {
-        if let Ok(bidx) = self.bits.binary_search_by_key(&(i/BITS), Bitfield::start) {
-          Arc::make_mut(&mut self.bits)[bidx].unset(i);
+        if let Ok(bidx) = self.bits.binary_search_by_key(&(i / BITS), Bitfield::start) {
+            Arc::make_mut(&mut self.bits)[bidx].unset(i);
         }
     }
 
     /// Set the specific bit position in this Bitset
     pub fn get(&self, i: usize) -> bool {
-        match self.bits.binary_search_by_key(&(i/BITS), Bitfield::start) {
-          Ok(bidx) => {
-            self.bits[bidx].get(i)
-          }
-          Err(_) => false
+        match self.bits.binary_search_by_key(&(i / BITS), Bitfield::start) {
+            Ok(bidx) => self.bits[bidx].get(i),
+            Err(_) => false,
         }
     }
 
@@ -69,17 +67,17 @@ impl Default for Bitset {
 }
 
 impl Iterator for BitsetIter {
-  type Item = BitfieldIter;
+    type Item = BitfieldIter;
 
-  fn next(&mut self) -> Option<BitfieldIter> {
-    if self.i < self.bits.len() {
-      let result = self.bits[self.i];
-      self.i += 1;
-      Some(result.into_iter())
-    } else {
-      None
+    fn next(&mut self) -> Option<BitfieldIter> {
+        if self.i < self.bits.len() {
+            let result = self.bits[self.i];
+            self.i += 1;
+            Some(result.into_iter())
+        } else {
+            None
+        }
     }
-  }
 }
 
 impl IntoIterator for Bitset {
@@ -88,9 +86,10 @@ impl IntoIterator for Bitset {
 
     fn into_iter(self) -> Self::IntoIter {
         BitsetIter {
-          bits: self.bits,
-          i: 0
-        }.flatten()
+            bits: self.bits,
+            i: 0,
+        }
+        .flatten()
     }
 }
 
@@ -241,25 +240,25 @@ mod test {
         let mut h = HashSet::new();
 
         for _ in 0..1000 {
-          let x = rand::thread_rng().gen_range(0,10_000);
-          b.set(x);
-          h.insert(x);
+            let x = rand::thread_rng().gen_range(0, 10_000);
+            b.set(x);
+            h.insert(x);
         }
 
         for i in b.iter() {
-          assert!(h.contains(&i));
+            assert!(h.contains(&i));
         }
 
         for i in h.iter() {
-          assert!(b.get(*i));
+            assert!(b.get(*i));
         }
 
         for i in h.iter() {
-          assert!(b.get(*i));
+            assert!(b.get(*i));
         }
 
         for x in 0..10_000 {
-          assert_eq!(b.get(x), h.contains(&x));
+            assert_eq!(b.get(x), h.contains(&x));
         }
     }
 }

@@ -1,5 +1,5 @@
-use crate::internal::mr::mrvec::MrVec;
 use crate::internal::mr::reduce::*;
+use crate::internal::mr::rvec::RVec;
 use crate::traits::record::Record;
 use crate::traits::valid_key::ValidKey;
 use crate::types::storage::Storage;
@@ -10,11 +10,11 @@ use std::collections::HashMap;
 pub struct Reduction<ChunkKey, Element, Summary> {
     parent_id: u64,
     group_size: usize,
-    gc_chunk_list: MrVec<Option<ChunkKey>>,
+    gc_chunk_list: RVec<Option<ChunkKey>>,
     rules: ReduceRules<Element, Summary>,
     chunkwise_reductions:
         HashMap<ChunkKey, Reduce<Element, Summary>, crate::internal::hasher::HasherImpl>,
-    chunkwise_summaries: MrVec<Summary>,
+    chunkwise_summaries: RVec<Summary>,
     reduction: Reduce<Summary, Summary>,
 }
 
@@ -42,7 +42,7 @@ where
         Map: Fn(&Element, &Summary) -> Option<Summary> + Clone + 'static,
         Fold: Fn(&[Summary], &Summary) -> Option<Summary> + Clone + 'static,
     {
-        let chunkwise_summaries = MrVec::default();
+        let chunkwise_summaries = RVec::default();
         let reduction = Reduce::new(
             &chunkwise_summaries,
             group_size,
@@ -51,7 +51,7 @@ where
         Reduction {
             parent_id: storage.id(),
             group_size,
-            gc_chunk_list: MrVec::default(),
+            gc_chunk_list: RVec::default(),
             rules: Self::chunkwise_rules(map.clone(), fold.clone()),
             chunkwise_reductions: HashMap::with_hasher(
                 crate::internal::hasher::HasherImpl::default(),
@@ -227,7 +227,7 @@ where
         let group_size = self.group_size;
         let rules = &self.rules;
 
-        chunkwise_summaries.map_reduce(&self.gc_chunk_list, 1, |chunk_key, _old_summary, idx| {
+        chunkwise_summaries.reduce(&self.gc_chunk_list, 1, |chunk_key, _old_summary, idx| {
             assert!(chunk_key.len() <= 1);
 
             if chunk_key.is_empty() {
@@ -238,7 +238,7 @@ where
                 .as_ref()
                 .cloned()
                 .expect("retriever bug: chunk keys should be defined for all indices after gc");
-            let internal_storage = storage.internal_mrvec()[idx].internal_mrvec();
+            let internal_storage = storage.internal_rvec()[idx].internal_rvec();
 
             chunkwise_reductions
                 .entry(chunk_key)
@@ -274,7 +274,7 @@ where
         let rules = &self.rules;
 
         let idx = storage.internal_idx_of(chunk_key)?;
-        let internal_storage = storage.internal_mrvec()[idx].internal_mrvec();
+        let internal_storage = storage.internal_rvec()[idx].internal_rvec();
 
         chunkwise_reductions
             .entry(chunk_key.clone())

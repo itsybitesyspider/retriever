@@ -1,4 +1,4 @@
-use crate::internal::mr::mrvec::MrVec;
+use crate::internal::mr::rvec::RVec;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -8,10 +8,10 @@ pub(crate) struct SummaryRules<Element, Token, Summary> {
     pub(crate) uncontribute: Arc<dyn Fn(&Token, usize, &mut Summary) + 'static>,
 }
 
-/// Maintain a summary of an MrVec by mutating a summary based on some token.
+/// Maintain a summary of an RVec by mutating a summary based on some token.
 pub(crate) struct Summarize<Element, Token, Summary> {
     rules: Arc<SummaryRules<Element, Token, Summary>>,
-    tokens: MrVec<Token>,
+    tokens: RVec<Token>,
     summary: Summary,
 }
 
@@ -20,7 +20,7 @@ where
     Token: Default + Eq,
 {
     pub(crate) fn new(
-        _source: &MrVec<Element>,
+        _source: &RVec<Element>,
         rules: Arc<SummaryRules<Element, Token, Summary>>,
     ) -> Self
     where
@@ -28,19 +28,19 @@ where
     {
         Summarize {
             rules,
-            tokens: MrVec::default(),
+            tokens: RVec::default(),
             summary: Summary::default(),
         }
     }
 
-    pub(crate) fn update(&mut self, parent: &MrVec<Element>) {
+    pub(crate) fn update(&mut self, parent: &RVec<Element>) {
         let tokens = &mut self.tokens;
         let map = &self.rules.map;
         let contribute = &self.rules.contribute;
         let uncontribute = &self.rules.uncontribute;
         let summary = &mut self.summary;
 
-        tokens.map_reduce(parent, 1, move |elements, old_token, i| {
+        tokens.reduce(parent, 1, move |elements, old_token, i| {
             if elements.is_empty() {
                 if old_token != &Token::default() {
                     (uncontribute)(old_token, i, summary);
@@ -98,7 +98,7 @@ mod test {
     fn test_sum() {
         use super::*;
 
-        let mut numbers = MrVec::default();
+        let mut numbers = RVec::default();
 
         numbers.push(1);
         numbers.push(2);
@@ -119,7 +119,7 @@ mod test {
     fn test_sum_with_update() {
         use super::*;
 
-        let mut numbers = MrVec::default();
+        let mut numbers = RVec::default();
 
         numbers.push(1);
         numbers.push(2);
@@ -144,7 +144,7 @@ mod test {
     fn test_sum_with_removal() {
         use super::*;
 
-        let mut numbers = MrVec::default();
+        let mut numbers = RVec::default();
 
         numbers.push(1);
         numbers.push(2);
@@ -169,7 +169,7 @@ mod test {
     fn test_sum_with_addition() {
         use super::*;
 
-        let mut numbers = MrVec::default();
+        let mut numbers = RVec::default();
 
         numbers.push(1);
         numbers.push(2);

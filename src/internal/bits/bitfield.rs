@@ -2,8 +2,8 @@ pub(super) const BITS: usize = (std::mem::size_of::<usize>() * 8);
 
 #[derive(Clone, Copy)]
 pub(super) struct Bitfield {
-  start: usize,
-  bits: usize
+    start: usize,
+    bits: usize,
 }
 
 pub(crate) struct BitfieldIter {
@@ -13,43 +13,43 @@ pub(crate) struct BitfieldIter {
 }
 
 impl Bitfield {
-  pub(super) fn new(i: usize) -> Self {
-    Bitfield {
-      start: i / BITS,
-      bits: 0b1 << (i % BITS),
+    pub(super) fn new(i: usize) -> Self {
+        Bitfield {
+            start: i / BITS,
+            bits: 0b1 << (i % BITS),
+        }
     }
-  }
 
-  #[inline]
-  pub(super) fn ones(&self) -> usize {
-    self.bits.count_ones() as usize
-  }
+    #[inline]
+    pub(super) fn ones(&self) -> usize {
+        self.bits.count_ones() as usize
+    }
 
-  #[inline]
-  pub(super) fn start(&self) -> usize {
-    self.start
-  }
+    #[inline]
+    pub(super) fn start(&self) -> usize {
+        self.start
+    }
 
-  #[inline]
-  pub(super) fn set(&mut self, i: usize) {
-      assert_eq!(i / BITS, self.start);
+    #[inline]
+    pub(super) fn set(&mut self, i: usize) {
+        assert_eq!(i / BITS, self.start);
 
-      self.bits |= 0b1 << (i % BITS);
-  }
+        self.bits |= 0b1 << (i % BITS);
+    }
 
-  #[inline]
-  pub(super) fn unset(&mut self, i: usize) {
-    assert_eq!(i / BITS, self.start);
+    #[inline]
+    pub(super) fn unset(&mut self, i: usize) {
+        assert_eq!(i / BITS, self.start);
 
-    self.bits &= !(0b1 << (i % BITS));
-  }
+        self.bits &= !(0b1 << (i % BITS));
+    }
 
-  #[inline]
-  pub(super) fn get(&self, i: usize) -> bool {
-    assert_eq!(i / BITS, self.start);
+    #[inline]
+    pub(super) fn get(&self, i: usize) -> bool {
+        assert_eq!(i / BITS, self.start);
 
-    self.bits & (0b1 << (i % BITS)) != 0
-  }
+        self.bits & (0b1 << (i % BITS)) != 0
+    }
 }
 
 impl IntoIterator for Bitfield {

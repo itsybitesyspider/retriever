@@ -1,19 +1,16 @@
+use super::chunk_storage::*;
 use super::entry::Entry;
 use crate::internal::hasher::HasherImpl;
-use crate::internal::mr::mrvec::MrVec;
+use crate::internal::mr::rvec::RVec;
 use crate::traits::query::Query;
 use crate::traits::record::Record;
 use crate::traits::valid_key::ValidKey;
-use crate::types::arc_iter::ArcIter;
 use crate::types::editor::Editor;
 use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
-use std::sync::Arc;
-
-use super::chunk_storage::*;
 
 static ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -21,7 +18,7 @@ static ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 #[derive(Clone)]
 pub struct Storage<ChunkKey, ItemKey, Element> {
     id: u64,
-    chunks: MrVec<ChunkStorage<ChunkKey, ItemKey, Element>>,
+    chunks: RVec<ChunkStorage<ChunkKey, ItemKey, Element>>,
     dirty: Vec<usize>,
     index: HashMap<ChunkKey, usize, HasherImpl>,
 }
@@ -60,7 +57,7 @@ where
     pub fn new() -> Self {
         Storage {
             id: ID_COUNTER.fetch_add(1, Ordering::Relaxed),
-            chunks: MrVec::default(),
+            chunks: RVec::default(),
             dirty: Vec::default(),
             index: HashMap::with_hasher(crate::internal::hasher::HasherImpl::default()),
         }
@@ -389,14 +386,6 @@ where
         self.chunks.iter().flat_map(|chunk| chunk.iter())
     }
 
-    /// Iterate over all elements of a shared reference to this storage.
-    pub fn iter_arc(arc: Arc<Self>) -> ArcIter<ChunkKey, ItemKey, Element>
-    where
-        Element: Clone,
-    {
-        ArcIter::new(arc)
-    }
-
     /// Iterate over elements according to some Query. A variety of builtin queries are provided.
     /// The simplest useful query is Everything, which iterates over everything.
     ///
@@ -605,7 +594,7 @@ where
         self.index.get(chunk_key).cloned()
     }
 
-    pub(crate) fn internal_mrvec(&self) -> &MrVec<ChunkStorage<ChunkKey, ItemKey, Element>> {
+    pub(crate) fn internal_rvec(&self) -> &RVec<ChunkStorage<ChunkKey, ItemKey, Element>> {
         &self.chunks
     }
 
@@ -613,7 +602,7 @@ where
     /// that no longer exist in the specified HashMap.
     pub(crate) fn gc<T>(
         &self,
-        chunk_list: &mut MrVec<Option<ChunkKey>>,
+        chunk_list: &mut RVec<Option<ChunkKey>>,
         data: &mut HashMap<ChunkKey, T, crate::internal::hasher::HasherImpl>,
     ) {
         let mut removed: HashSet<ChunkKey, _> =
@@ -621,7 +610,7 @@ where
         let mut added: HashSet<ChunkKey, _> =
             HashSet::with_hasher(crate::internal::hasher::HasherImpl::default());
 
-        chunk_list.map_reduce(&self.chunks, 1, |chunk_storages, prev_chunk_key, _| {
+        chunk_list.reduce(&self.chunks, 1, |chunk_storages, prev_chunk_key, _| {
             if chunk_storages.is_empty() {
                 if let Some(chunk_key) = prev_chunk_key.as_ref() {
                     removed.insert(chunk_key.clone());

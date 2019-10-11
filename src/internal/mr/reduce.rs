@@ -1,4 +1,4 @@
-use crate::internal::mr::mrvec::MrVec;
+use crate::internal::mr::rvec::RVec;
 use std::sync::Arc;
 
 pub(crate) struct ReduceRules<Element, Summary> {
@@ -8,7 +8,7 @@ pub(crate) struct ReduceRules<Element, Summary> {
 
 pub(crate) struct Reduce<Element, Summary> {
     rules: ReduceRules<Element, Summary>,
-    reductions: Vec<MrVec<Summary>>,
+    reductions: Vec<RVec<Summary>>,
     group_size: usize,
 }
 
@@ -30,7 +30,7 @@ where
     Summary: Default,
 {
     pub(crate) fn new(
-        _parent: &MrVec<Element>,
+        _parent: &RVec<Element>,
         group_size: usize,
         rules: ReduceRules<Element, Summary>,
     ) -> Self {
@@ -38,20 +38,20 @@ where
 
         Reduce {
             rules,
-            reductions: vec![MrVec::default()],
+            reductions: vec![RVec::default()],
             group_size,
         }
     }
 
-    pub(crate) fn update(&mut self, parent: &MrVec<Element>) -> Option<&Summary> {
+    pub(crate) fn update(&mut self, parent: &RVec<Element>) -> Option<&Summary> {
         let mut layer = 0;
         let map = &self.rules.map;
         let reduce = &self.rules.reduce;
 
         if parent.len() == 0 {
-            self.reductions[layer] = MrVec::default();
+            self.reductions[layer] = RVec::default();
         } else {
-            self.reductions[layer].map_reduce(parent, 1, |xs, y, i| {
+            self.reductions[layer].reduce(parent, 1, |xs, y, i| {
                 if xs.is_empty() {
                     None
                 } else {
@@ -62,11 +62,11 @@ where
 
         while self.reductions[layer].len() > 1 {
             if self.reductions.len() == layer + 1 {
-                self.reductions.push(MrVec::default());
+                self.reductions.push(RVec::default());
             }
 
             let (left, right) = self.reductions.split_at_mut(layer + 1);
-            right[0].map_reduce(&left[layer], self.group_size, |xs, y, _| {
+            right[0].reduce(&left[layer], self.group_size, |xs, y, _| {
                 if xs.is_empty() {
                     None
                 } else {
@@ -127,7 +127,7 @@ mod test {
     fn test_sum() {
         use super::*;
 
-        let mut numbers = MrVec::default();
+        let mut numbers = RVec::default();
 
         numbers.push(1);
         numbers.push(2);
@@ -148,7 +148,7 @@ mod test {
     fn test_sum_with_update() {
         use super::*;
 
-        let mut numbers = MrVec::default();
+        let mut numbers = RVec::default();
 
         numbers.push(1);
         numbers.push(2);
@@ -173,7 +173,7 @@ mod test {
     fn test_sum_with_removal() {
         use super::*;
 
-        let mut numbers = MrVec::default();
+        let mut numbers = RVec::default();
 
         numbers.push(1);
         numbers.push(2);
@@ -198,7 +198,7 @@ mod test {
     fn test_sum_with_addition() {
         use super::*;
 
-        let mut numbers = MrVec::default();
+        let mut numbers = RVec::default();
 
         numbers.push(1);
         numbers.push(2);

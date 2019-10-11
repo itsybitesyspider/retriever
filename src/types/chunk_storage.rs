@@ -1,7 +1,7 @@
 use super::entry::Entry;
 use super::id::Id;
 use crate::internal::hasher::HasherImpl;
-use crate::internal::mr::mrvec::MrVec;
+use crate::internal::mr::rvec::RVec;
 use crate::traits::query::Query;
 use crate::traits::record::Record;
 use crate::traits::valid_key::ValidKey;
@@ -14,7 +14,7 @@ use std::hash::Hash;
 #[derive(Clone)]
 pub struct ChunkStorage<ChunkKey, ItemKey, Element> {
     chunk_key: ChunkKey,
-    data: MrVec<Element>,
+    data: RVec<Element>,
     index: HashMap<ItemKey, usize, HasherImpl>,
 }
 
@@ -27,7 +27,7 @@ where
     pub(crate) fn new(chunk_key: ChunkKey) -> Self {
         ChunkStorage {
             chunk_key,
-            data: MrVec::default(),
+            data: RVec::default(),
             index: HashMap::with_hasher(crate::internal::hasher::HasherImpl::default()),
         }
     }
@@ -168,7 +168,7 @@ where
         self.index.get(item_key).cloned()
     }
 
-    pub(crate) fn internal_mrvec(&self) -> &MrVec<Element> {
+    pub(crate) fn internal_rvec(&self) -> &RVec<Element> {
         &self.data
     }
 

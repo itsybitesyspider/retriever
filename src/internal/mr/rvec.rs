@@ -23,7 +23,7 @@ struct ChangedVec {
     counts_4: Vec<u128>,
 }
 
-pub(crate) struct MrVec<T> {
+pub(crate) struct RVec<T> {
     id: u64,
     parent_id: Option<u64>,
     parent_count: u128,
@@ -31,26 +31,36 @@ pub(crate) struct MrVec<T> {
     changed_vec: ChangedVec,
 }
 
-impl<T> MrVec<T> {
-    /// Length of this MrVec. As Vec::len().
+impl<T> RVec<T> {
+    /// Length of this RVec. As Vec::len().
     pub(crate) fn len(&self) -> usize {
         self.data.len()
     }
 
-    /// Number of changes made to this MrVec.
+    /// Number of changes made to this RVec.
     #[cfg(test)]
     pub(crate) fn change_count(&self) -> u128 {
         self.changed_vec.count
     }
 
-    /// Touch an element of this MrVec, but index.
+    /// Touch an element of this RVec, but index.
     pub(crate) fn touch(&mut self, i: usize) -> &mut Self {
-        if i/STRIDE_0+1 > self.changed_vec.counts_0.len() {
-          self.changed_vec.counts_0.resize(self.changed_vec.counts_0.len().max(i/STRIDE_0+1), 0);
-          self.changed_vec.counts_1.resize(self.changed_vec.counts_1.len().max(i/STRIDE_1+1), 0);
-          self.changed_vec.counts_2.resize(self.changed_vec.counts_2.len().max(i/STRIDE_2+1), 0);
-          self.changed_vec.counts_3.resize(self.changed_vec.counts_3.len().max(i/STRIDE_3+1), 0);
-          self.changed_vec.counts_4.resize(self.changed_vec.counts_4.len().max(i/STRIDE_4+1), 0);
+        if i / STRIDE_0 + 1 > self.changed_vec.counts_0.len() {
+            self.changed_vec
+                .counts_0
+                .resize(self.changed_vec.counts_0.len().max(i / STRIDE_0 + 1), 0);
+            self.changed_vec
+                .counts_1
+                .resize(self.changed_vec.counts_1.len().max(i / STRIDE_1 + 1), 0);
+            self.changed_vec
+                .counts_2
+                .resize(self.changed_vec.counts_2.len().max(i / STRIDE_2 + 1), 0);
+            self.changed_vec
+                .counts_3
+                .resize(self.changed_vec.counts_3.len().max(i / STRIDE_3 + 1), 0);
+            self.changed_vec
+                .counts_4
+                .resize(self.changed_vec.counts_4.len().max(i / STRIDE_4 + 1), 0);
         }
 
         self.changed_vec.count += 1;
@@ -76,13 +86,13 @@ impl<T> MrVec<T> {
         self
     }
 
-    /// Push a single element to this MrVec. As Vec::push(..).
+    /// Push a single element to this RVec. As Vec::push(..).
     pub(crate) fn push(&mut self, t: T) {
         self.data.push(t);
         self.touch(self.data.len() - 1);
     }
 
-    /// Swap and remove a single element from this MrVec. As Vec::swap_remove(..).
+    /// Swap and remove a single element from this RVec. As Vec::swap_remove(..).
     pub(crate) fn swap_remove(&mut self, i: usize) -> T {
         self.touch(self.data.len() - 1);
         self.touch(i);
@@ -96,10 +106,10 @@ impl<T> MrVec<T> {
             warn!("{}", warning_msg);
         }
 
-        *self = MrVec::from(vec![]);
+        *self = RVec::from(vec![]);
     }
 
-    fn validate_parent_id<S>(&mut self, source: &MrVec<S>) {
+    fn validate_parent_id<S>(&mut self, source: &RVec<S>) {
         if let Some(parent_id) = self.parent_id {
             if parent_id != source.id {
                 self.reset();
@@ -113,16 +123,16 @@ impl<T> MrVec<T> {
         assert_eq!(self.parent_id, Some(source.id));
     }
 
-    pub(crate) fn map_reduce<S, Op>(&mut self, source: &MrVec<S>, group_size: usize, mut op: Op)
+    pub(crate) fn reduce<S, Op>(&mut self, source: &RVec<S>, group_size: usize, mut op: Op)
     where
         Op: FnMut(&[S], &T, usize) -> Option<T>,
         T: Default,
     {
-        // Validate the parent/source Id, so we know we aren't map-reducing the wrong parent
+        // Validate the parent (source) Id, so we know we aren't reducing the wrong parent
         self.validate_parent_id(source);
 
-        // If the parent/source is shorter than last time, we need to delete the extra
-        // elements from the reduction/self MrVec and notify via the callback.
+        // If the parent (source) is shorter than last time, we need to delete the extra
+        // elements from the reduction (self) RVec and notify via the callback.
         {
             let old_size = self.data.len();
             let new_size = (source.data.len() + group_size - 1) / group_size;
@@ -135,8 +145,8 @@ impl<T> MrVec<T> {
             self.resize_touch(new_size);
         }
 
-        // Figure out how stale is our knowledge of the state of the parent/source
-        // and which of the reduction/self elements need to be recalculated
+        // Figure out how stale is our knowledge of the state of the parent (source)
+        // and which of the reduction (self) elements need to be recalculated
         let expected_count = self.parent_count;
         let mut needs_recalc = Vec::new();
         let mut i = 0;
@@ -175,13 +185,13 @@ impl<T> MrVec<T> {
     }
 }
 
-impl<T> Default for MrVec<T> {
+impl<T> Default for RVec<T> {
     fn default() -> Self {
         Self::from(Vec::new())
     }
 }
 
-impl<T> Index<usize> for MrVec<T> {
+impl<T> Index<usize> for RVec<T> {
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -189,14 +199,14 @@ impl<T> Index<usize> for MrVec<T> {
     }
 }
 
-impl<T> IndexMut<usize> for MrVec<T> {
+impl<T> IndexMut<usize> for RVec<T> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         self.touch(index);
         &mut self.data[index]
     }
 }
 
-impl<T> From<Vec<T>> for MrVec<T> {
+impl<T> From<Vec<T>> for RVec<T> {
     fn from(data: Vec<T>) -> Self {
         let mut counts_0 = Vec::new();
         counts_0.resize(data.len() / STRIDE_0 + 1, 0);
@@ -213,7 +223,7 @@ impl<T> From<Vec<T>> for MrVec<T> {
         let mut counts_4 = Vec::new();
         counts_4.resize(data.len() / STRIDE_4 + 1, 0);
 
-        MrVec {
+        RVec {
             id: ID_COUNTER.fetch_add(1, Ordering::Relaxed),
             data,
             parent_count: 0,
@@ -230,13 +240,13 @@ impl<T> From<Vec<T>> for MrVec<T> {
     }
 }
 
-impl<T> Into<Vec<T>> for MrVec<T> {
+impl<T> Into<Vec<T>> for RVec<T> {
     fn into(self) -> Vec<T> {
         self.data
     }
 }
 
-impl<T> std::ops::Deref for MrVec<T> {
+impl<T> std::ops::Deref for RVec<T> {
     type Target = [T];
 
     fn deref(&self) -> &[T] {
@@ -244,12 +254,12 @@ impl<T> std::ops::Deref for MrVec<T> {
     }
 }
 
-impl<T> Clone for MrVec<T>
+impl<T> Clone for RVec<T>
 where
     T: Clone,
 {
     fn clone(&self) -> Self {
-        let mut result = MrVec::default();
+        let mut result = RVec::default();
 
         for e in self.data.iter() {
             result.push(e.clone());
@@ -265,7 +275,7 @@ mod test {
     fn test_len() {
         use super::*;
 
-        let mut v = MrVec::default();
+        let mut v = RVec::default();
         v.push(0);
         v.push(1);
         v.push(2);
@@ -276,7 +286,7 @@ mod test {
     fn test_change_count() {
         use super::*;
 
-        let mut v = MrVec::default();
+        let mut v = RVec::default();
         v.push(1);
         v.push(2);
         v.push(3);
@@ -293,13 +303,13 @@ mod test {
     fn test_map_reduce_small_sum() {
         use super::*;
 
-        let mut v = MrVec::default();
+        let mut v = RVec::default();
         v.push(1);
         v.push(2);
         v.push(3);
 
-        let mut result = MrVec::default();
-        result.map_reduce(&v, 100, |xs, _, _| Some(xs.iter().sum::<i32>()));
+        let mut result = RVec::default();
+        result.reduce(&v, 100, |xs, _, _| Some(xs.iter().sum::<i32>()));
 
         assert_eq!(result[0], 6);
         assert_eq!(result.len(), 1);
@@ -309,20 +319,20 @@ mod test {
     fn test_map_reduce_small_sum_with_edit() {
         use super::*;
 
-        let mut v = MrVec::default();
+        let mut v = RVec::default();
         v.push(1);
         v.push(2);
         v.push(3);
 
-        let mut result = MrVec::default();
-        result.map_reduce(&v, 100, |xs, _, _| Some(xs.iter().sum::<i32>()));
+        let mut result = RVec::default();
+        result.reduce(&v, 100, |xs, _, _| Some(xs.iter().sum::<i32>()));
 
         assert_eq!(result[0], 6);
         assert_eq!(result.len(), 1);
 
         v[1] = 4;
 
-        result.map_reduce(&v, 100, |xs, _, _| Some(xs.iter().sum::<i32>()));
+        result.reduce(&v, 100, |xs, _, _| Some(xs.iter().sum::<i32>()));
 
         assert_eq!(result[0], 8);
         assert_eq!(result.len(), 1);
@@ -332,20 +342,20 @@ mod test {
     fn test_map_reduce_small_sum_with_removal() {
         use super::*;
 
-        let mut v = MrVec::default();
+        let mut v = RVec::default();
         v.push(1);
         v.push(2);
         v.push(3);
 
-        let mut result = MrVec::default();
-        result.map_reduce(&v, 100, |xs, _, _| Some(xs.iter().sum::<i32>()));
+        let mut result = RVec::default();
+        result.reduce(&v, 100, |xs, _, _| Some(xs.iter().sum::<i32>()));
 
         assert_eq!(result[0], 6);
         assert_eq!(result.len(), 1);
 
         v.swap_remove(2);
 
-        result.map_reduce(&v, 100, |xs, _, _| Some(xs.iter().sum::<i32>()));
+        result.reduce(&v, 100, |xs, _, _| Some(xs.iter().sum::<i32>()));
 
         assert_eq!(result[0], 3);
         assert_eq!(result.len(), 1);
@@ -355,7 +365,7 @@ mod test {
     fn test_map_reduce_with_two_layers() {
         use super::*;
 
-        let mut v = MrVec::default();
+        let mut v = RVec::default();
         v.push(1);
         v.push(2);
         v.push(3);
@@ -367,8 +377,8 @@ mod test {
         v.push(9);
         v.push(10);
 
-        let mut layer_1 = MrVec::default();
-        layer_1.map_reduce(&v, 2, |xs, _, _| {
+        let mut layer_1 = RVec::default();
+        layer_1.reduce(&v, 2, |xs, _, _| {
             if xs.is_empty() {
                 None
             } else {
@@ -384,7 +394,7 @@ mod test {
         assert_eq!(layer_1.len(), 5);
 
         v.swap_remove(3);
-        layer_1.map_reduce(&v, 2, |xs, _, _| {
+        layer_1.reduce(&v, 2, |xs, _, _| {
             if xs.is_empty() {
                 None
             } else {
@@ -400,7 +410,7 @@ mod test {
         assert_eq!(layer_1.len(), 5);
 
         v.swap_remove(5);
-        layer_1.map_reduce(&v, 2, |xs, _, _| {
+        layer_1.reduce(&v, 2, |xs, _, _| {
             if xs.is_empty() {
                 None
             } else {
@@ -422,22 +432,22 @@ mod test {
         #[cfg(feature = "log")]
         let _ = simple_logger::init();
 
-        let mut v = MrVec::default();
+        let mut v = RVec::default();
         v.push(1);
         v.push(2);
         v.push(3);
 
-        let mut result = MrVec::default();
-        result.map_reduce(&v, 2, |xs, _, _| Some(xs.iter().sum::<i32>()));
+        let mut result = RVec::default();
+        result.reduce(&v, 2, |xs, _, _| Some(xs.iter().sum::<i32>()));
         assert_eq!(3, result[0]);
         assert_eq!(3, result[1]);
 
-        let mut w = MrVec::default();
+        let mut w = RVec::default();
         w.push(4);
         w.push(5);
         w.push(6);
 
-        result.map_reduce(&w, 2, |xs, _, _| Some(xs.iter().sum::<i32>()));
+        result.reduce(&w, 2, |xs, _, _| Some(xs.iter().sum::<i32>()));
         assert_eq!(9, result[0]);
         assert_eq!(6, result[1]);
     }

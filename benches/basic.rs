@@ -281,22 +281,22 @@ fn criterion_benchmark(c: &mut Criterion) {
     );
 
     everything_group.bench_function("bench_query_even_integers (1 query(&Everything.filter(..)) operation over every other of 39321 elements)", |b| {
-    let storage = bench_add_integers();
-    b.iter(|| bench_query_even_integers(&storage))
-  });
+        let storage = bench_add_integers();
+        b.iter(|| bench_query_even_integers(&storage))
+    });
 
     everything_group.bench_function("bench_query_even_integers_in_chunks (1 query(&Chunks(&[..]).filter(..)) operation over every other of 39321 elements)", |b| {
-    let storage = bench_add_integers();
-    b.iter(|| bench_query_even_integers_in_chunks(&storage))
-  });
+        let storage = bench_add_integers();
+        b.iter(|| bench_query_even_integers_in_chunks(&storage))
+    });
 
     everything_group.bench_function("bench_modify_even_integers (1 modify(Everything.filter(..)) operation over every other of 39321 elements)", |b| {
-    b.iter_batched(
-     || bench_add_integers(),
-     |mut storage| bench_modify_even_integers(&mut storage),
-     BatchSize::LargeInput
-    )
-  });
+        b.iter_batched(
+            || bench_add_integers(),
+            |mut storage| bench_modify_even_integers(&mut storage),
+            BatchSize::LargeInput
+        )
+    });
 
     everything_group.bench_function("bench_remove_even_integers (1 remove(Everything.filter(..)) operation over every other of 39321 elements)", |b| {
     b.iter_batched(
