@@ -192,7 +192,7 @@ where
     ItemKey: ValidKey + 'a,
     B: Hash + Eq + 'a + ?Sized,
     IndexKeys: ValidKey + Default,
-    IndexKey: ValidKey + Default + Borrow<B>,
+    IndexKey: ValidKey + Borrow<B>,
     Element: Record<ChunkKey, ItemKey>,
     for<'z> &'z IndexKeys: IntoIterator<Item = &'z IndexKey>,
 {
