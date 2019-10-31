@@ -168,7 +168,7 @@ where
     ChunkKey: ValidKey,
     B: Hash + Eq + ?Sized + 'a,
     IndexKeys: ValidKey + Default,
-    IndexKey: ValidKey + Default + Borrow<B>,
+    IndexKey: ValidKey + Borrow<B>,
     for<'x> &'x IndexKeys: IntoIterator<Item = &'x IndexKey>,
 {
     pub(crate) fn new(

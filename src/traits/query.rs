@@ -108,7 +108,7 @@ pub trait Query<ChunkKey, ItemKey, Element> {
         ItemKey: ValidKey,
         Element: Record<ChunkKey, ItemKey>,
         IndexKeys: ValidKey + Default,
-        IndexKey: ValidKey + Default + Borrow<B>,
+        IndexKey: ValidKey + Borrow<B>,
         B: Hash + Eq + 'a + ?Sized,
         for<'z> &'z IndexKeys: IntoIterator<Item = &'z IndexKey>,
     {
