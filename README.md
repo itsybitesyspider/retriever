@@ -20,11 +20,18 @@ Retriever is an embedded in-memory data store for rust applications.
   and pass it to serde for serialization.
 
 ### ToDo: (I want these features, but they aren't yet implemented)
-* Range queries
 * Parallelism (probably via rayon)
+* Range queries
 * Boolean queries (union, intersection, difference, etc -- note: you can perform intersection
   queries now just by chaining query operators)
 * External mutable iterators (currently only internal iteration is supported for mutation)
+* Retriever needs rigorous testing to ensure it does not have space leaks; currently it has
+  at least one known space leak; probably my first priority going forward.
+* It's likely that there's a vastly superior bitset implementation out there somewhere,
+  and I'd like to incorporate it.
+* Theoretically, I expect retriever's performance to break down beyond about
+  16 million chunks of 16 million elements; I would eventually like retriever to
+  scale up to "every electron in the universe."
 
 ### Comparison to other databases (SQL, MongoDB, etc)
 

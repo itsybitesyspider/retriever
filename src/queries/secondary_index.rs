@@ -26,7 +26,6 @@ where
     index_key: &'a B,
 }
 
-#[derive(Default)]
 struct ChunkSecondaryIndex<IndexKey>
 where
     IndexKey: ValidKey,
@@ -54,7 +53,7 @@ where
 impl<ChunkKey, Element, IndexKeys, IndexKey> SecondaryIndex<ChunkKey, Element, IndexKeys, IndexKey>
 where
     ChunkKey: ValidKey,
-    IndexKey: ValidKey + Default,
+    IndexKey: ValidKey,
     IndexKeys: ValidKey + Default,
     for<'x> &'x IndexKeys: IntoIterator<Item = &'x IndexKey>,
 {
@@ -296,5 +295,16 @@ mod test {
 
         storage.validate();
         by_color.validate(&storage);
+    }
+}
+
+impl<IndexKey> Default for ChunkSecondaryIndex<IndexKey>
+where
+    IndexKey: ValidKey,
+{
+    fn default() -> Self {
+        ChunkSecondaryIndex {
+            reverse_index: HashMap::default(),
+        }
     }
 }
