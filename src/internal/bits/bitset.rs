@@ -11,7 +11,8 @@ pub(crate) struct Bitset {
 
 pub(crate) struct BitsetIter {
     bits: Arc<Vec<Bitfield>>,
-    i: usize,
+    front: usize,
+    back: usize,
 }
 
 impl Bitset {
@@ -70,9 +71,21 @@ impl Iterator for BitsetIter {
     type Item = BitfieldIter;
 
     fn next(&mut self) -> Option<BitfieldIter> {
-        if self.i < self.bits.len() {
-            let result = self.bits[self.i];
-            self.i += 1;
+        if self.front < self.back {
+            let result = self.bits[self.front];
+            self.front += 1;
+            Some(result.into_iter())
+        } else {
+            None
+        }
+    }
+}
+
+impl DoubleEndedIterator for BitsetIter {
+    fn next_back(&mut self) -> Option<BitfieldIter> {
+        if self.front < self.back {
+            self.back -= 1;
+            let result = self.bits[self.back];
             Some(result.into_iter())
         } else {
             None
@@ -85,9 +98,13 @@ impl IntoIterator for Bitset {
     type IntoIter = <Flatten<BitsetIter> as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
+        let front = 0;
+        let back = self.bits.len();
+
         BitsetIter {
             bits: self.bits,
-            i: 0,
+            front,
+            back,
         }
         .flatten()
     }
@@ -109,7 +126,7 @@ impl FromIterator<usize> for Bitset {
 mod test {
     use super::*;
     use rand::Rng;
-    use std::collections::hash_set::HashSet;
+    use std::collections::BTreeSet;
 
     #[test]
     fn test_single_bit() {
@@ -237,7 +254,7 @@ mod test {
     #[test]
     fn test_random() {
         let mut b = Bitset::default();
-        let mut h = HashSet::new();
+        let mut h = BTreeSet::new();
 
         for _ in 0..1000 {
             let x = rand::thread_rng().gen_range(0, 10_000);
@@ -245,16 +262,25 @@ mod test {
             h.insert(x);
         }
 
+        let mut fore = Vec::new();
         for i in b.iter() {
+            fore.push(i);
             assert!(h.contains(&i));
         }
 
-        for i in h.iter() {
-            assert!(b.get(*i));
+        let mut aft = Vec::new();
+        for i in b.iter().rev() {
+            aft.push(i);
+            assert!(h.contains(&i));
         }
 
-        for i in h.iter() {
-            assert!(b.get(*i));
+        aft.reverse();
+        assert_eq!(&fore, &aft);
+
+        for (i,v) in h.iter().enumerate() {
+            assert!(b.get(*v));
+            assert_eq!(&fore[i], v);
+            assert_eq!(&aft[i], v);
         }
 
         for x in 0..10_000 {

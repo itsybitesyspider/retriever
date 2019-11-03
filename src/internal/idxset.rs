@@ -114,19 +114,6 @@ impl IdxSet {
     pub fn from_length(len: usize) -> Self {
         IdxSet(IdxSetEnum::ToLength(len))
     }
-
-    /// True if this IdxSet is sorted. An Iterator over a sorted IdxSet will yield
-    /// indices in sorted order.
-    pub fn is_sorted(&self) -> bool {
-        match &self.0 {
-            IdxSetEnum::Bitset(_) => false,
-            IdxSetEnum::Intersection(xs) if xs.is_empty() => true,
-            IdxSetEnum::Intersection(xs) => xs[0].is_sorted(),
-            IdxSetEnum::ExactValue(_) => true,
-            IdxSetEnum::Nothing => true,
-            IdxSetEnum::ToLength(_) => true,
-        }
-    }
 }
 
 impl Iterator for IdxIter {
@@ -153,7 +140,7 @@ impl DoubleEndedIterator for IdxIter {
     fn next_back(&mut self) -> Option<usize> {
         let result = match &mut self.0 {
             IdxIterEnum::Range(range) => range.next_back(),
-            IdxIterEnum::Bitset(_) => unimplemented!(),
+            IdxIterEnum::Bitset(bs) => bs.next_back(),
         }?;
 
         if self.1.iter().any(|xs| !xs.contains(result)) {

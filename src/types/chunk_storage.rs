@@ -130,19 +130,11 @@ where
         let mut last_removed_idx = self.data.len();
         let idxs = query.item_idxs(&self.chunk_key, &self);
 
-        if idxs.is_sorted() {
-            for idx in idxs.iter().rev() {
-                if query.test(&self.data[idx]) {
-                    assert!(idx < last_removed_idx);
-                    last_removed_idx = idx;
-                    f(self.remove_idx(idx));
-                }
-            }
-        } else {
-            let mut idxs: Vec<usize> = idxs.iter().collect();
-            idxs.sort_unstable();
-            for idx in idxs.iter().rev() {
-                f(self.remove_idx(*idx));
+        for idx in idxs.iter().rev() {
+            if query.test(&self.data[idx]) {
+                assert!(idx < last_removed_idx);
+                last_removed_idx = idx;
+                f(self.remove_idx(idx));
             }
         }
     }
