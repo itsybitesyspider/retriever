@@ -8,6 +8,8 @@
 //! Retriever is ideal when you need to index a collection by multiple properties,
 //! you need a variety of relations between elements in a collection, or
 //! or you need to maintain summary statistics about a collection.
+//! Retriever can make your application data more easily discoverable, searchable, and auditable
+//! compared to a "big jumble of plain old rust types."
 //! Retriever can help reduce data redundancy and establish a single source of truth
 //! for all values.
 //!
