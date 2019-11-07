@@ -6,7 +6,7 @@ use crate::types::chunk_storage::ChunkStorage;
 use crate::types::storage::Storage;
 
 /// A query that visits every record in storage.
-#[derive(Clone, Copy)]
+#[derive(Copy, Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Everything;
 
 impl<ChunkKey, ItemKey, Element> Query<ChunkKey, ItemKey, Element> for Everything

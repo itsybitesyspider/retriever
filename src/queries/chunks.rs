@@ -21,6 +21,7 @@ use std::ops::RangeInclusive;
 /// `Range`, `RangeInclusive`, slices, and arrays up to length 16. If the
 /// `smallvec` feature is enabled, this adds support for `SmallVec` backed
 /// by arrays up to length 16.
+#[derive(Copy, Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Chunks<A>(pub A);
 
 impl<Q, ChunkKey, ItemKey, Element> Query<ChunkKey, ItemKey, Element> for Chunks<Vec<Q>>

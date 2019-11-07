@@ -5,7 +5,7 @@ use crate::types::chunk_storage::ChunkStorage;
 use crate::types::storage::Storage;
 
 /// Filter a `Query` by a predicate.
-#[derive(Clone, Copy)]
+#[derive(Copy, Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Filter<Q, F> {
     parent: Q,
     filter: F,
