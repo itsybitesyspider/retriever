@@ -4,8 +4,11 @@ use crate::traits::valid_key::ValidKey;
 use crate::types::chunk_storage::ChunkStorage;
 use crate::types::storage::Storage;
 use std::borrow::Borrow;
+use std::borrow::Cow;
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::rc::Rc;
+use std::sync::Arc;
 
 /// A Query defines a subset of the chunks and a subset of the data elements in each chunk.
 pub trait Query<ChunkKey, ItemKey, Element> {
@@ -115,5 +118,101 @@ pub trait Query<ChunkKey, ItemKey, Element> {
         for<'z> &'z IndexKeys: IntoIterator<Item = &'z IndexKey>,
     {
         crate::queries::secondary_index::MatchingSecondaryIndex::new(self, secondary_index, key)
+    }
+}
+
+impl<'a, Q, ChunkKey, ItemKey, Element> Query<ChunkKey, ItemKey, Element> for &'a Q
+where
+    Q: Query<ChunkKey, ItemKey, Element>,
+{
+    type ChunkIdxSet = Q::ChunkIdxSet;
+    type ItemIdxSet = Q::ItemIdxSet;
+
+    fn chunk_idxs(&self, storage: &Storage<ChunkKey, ItemKey, Element>) -> Self::ChunkIdxSet {
+        Q::chunk_idxs(self, storage)
+    }
+
+    fn item_idxs(
+        &self,
+        chunk_key: &ChunkKey,
+        chunk_storage: &ChunkStorage<ChunkKey, ItemKey, Element>,
+    ) -> Self::ItemIdxSet {
+        Q::item_idxs(self, chunk_key, chunk_storage)
+    }
+
+    fn test(&self, element: &Element) -> bool {
+        Q::test(self, element)
+    }
+}
+
+impl<Q, ChunkKey, ItemKey, Element> Query<ChunkKey, ItemKey, Element> for Rc<Q>
+where
+    Q: Query<ChunkKey, ItemKey, Element>,
+{
+    type ChunkIdxSet = Q::ChunkIdxSet;
+    type ItemIdxSet = Q::ItemIdxSet;
+
+    fn chunk_idxs(&self, storage: &Storage<ChunkKey, ItemKey, Element>) -> Self::ChunkIdxSet {
+        Q::chunk_idxs(Rc::as_ref(self), storage)
+    }
+
+    fn item_idxs(
+        &self,
+        chunk_key: &ChunkKey,
+        chunk_storage: &ChunkStorage<ChunkKey, ItemKey, Element>,
+    ) -> Self::ItemIdxSet {
+        Q::item_idxs(Rc::as_ref(self), chunk_key, chunk_storage)
+    }
+
+    fn test(&self, element: &Element) -> bool {
+        Q::test(Rc::as_ref(self), element)
+    }
+}
+
+impl<Q, ChunkKey, ItemKey, Element> Query<ChunkKey, ItemKey, Element> for Arc<Q>
+where
+    Q: Query<ChunkKey, ItemKey, Element>,
+{
+    type ChunkIdxSet = Q::ChunkIdxSet;
+    type ItemIdxSet = Q::ItemIdxSet;
+
+    fn chunk_idxs(&self, storage: &Storage<ChunkKey, ItemKey, Element>) -> Self::ChunkIdxSet {
+        Q::chunk_idxs(Arc::as_ref(self), storage)
+    }
+
+    fn item_idxs(
+        &self,
+        chunk_key: &ChunkKey,
+        chunk_storage: &ChunkStorage<ChunkKey, ItemKey, Element>,
+    ) -> Self::ItemIdxSet {
+        Q::item_idxs(Arc::as_ref(self), chunk_key, chunk_storage)
+    }
+
+    fn test(&self, element: &Element) -> bool {
+        Q::test(Arc::as_ref(self), element)
+    }
+}
+
+impl<'a, Q, ChunkKey, ItemKey, Element> Query<ChunkKey, ItemKey, Element> for Cow<'a, Q>
+where
+    Q: Query<ChunkKey, ItemKey, Element> + Clone,
+{
+    type ChunkIdxSet = Q::ChunkIdxSet;
+    type ItemIdxSet = Q::ItemIdxSet;
+
+    fn chunk_idxs(&self, storage: &Storage<ChunkKey, ItemKey, Element>) -> Self::ChunkIdxSet {
+        Q::chunk_idxs(Cow::borrow(self), storage)
+    }
+
+    fn item_idxs(
+        &self,
+        chunk_key: &ChunkKey,
+        chunk_storage: &ChunkStorage<ChunkKey, ItemKey, Element>,
+    ) -> Self::ItemIdxSet {
+        Q::item_idxs(Cow::borrow(self), chunk_key, chunk_storage)
+    }
+
+    fn test(&self, element: &Element) -> bool {
+        Q::test(Cow::borrow(self), element)
     }
 }

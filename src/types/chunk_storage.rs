@@ -98,9 +98,9 @@ where
         self.data.iter()
     }
 
-    pub(crate) fn query<'a, Q>(&'a self, query: &'a Q) -> impl Iterator<Item = &'a Element>
+    pub(crate) fn query<'a, Q>(&'a self, query: Q) -> impl Iterator<Item = &'a Element>
     where
-        Q: Query<ChunkKey, ItemKey, Element>,
+        Q: Query<ChunkKey, ItemKey, Element> + Clone + 'a,
     {
         query
             .item_idxs(&self.chunk_key, &self)

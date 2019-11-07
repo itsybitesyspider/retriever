@@ -382,34 +382,67 @@ where
             .entry(unique_id)
     }
 
-    /// Iterate over all elements in this storage.
-    pub fn iter(&self) -> impl Iterator<Item = &Element> {
-        self.chunks.iter().flat_map(|chunk| chunk.iter())
-    }
-
-    /// Iterate over elements according to some Query. A variety of builtin queries are provided.
-    /// The simplest useful query is Everything, which iterates over everything.
+    /// Iterate over every element in storage.
     ///
     /// ```
     /// use retriever::prelude::*;
     ///
     /// let mut storage : Storage<usize,usize,(usize,usize,i64)> = Storage::new();
     ///
-    /// storage.add((0,0,17));
-    /// storage.add((0,1,53));
-    /// storage.add((0,9,-57));
-    /// storage.add((1,7,29));
-    /// storage.add((2,13,-19));
-    /// storage.add((2,1024,-23));
+    /// storage.add((1,1000,17));
+    /// storage.add((1,1001,53));
+    /// storage.add((1,1002,-57));
+    /// storage.add((2,2000,29));
+    /// storage.add((2,2001,-19));
+    /// storage.add((3,3002,-23));
     ///
     /// // All elements together should sum to zero:
-    /// assert_eq!(storage.iter().map(|(_,_,x)| *x).sum::<i64>(), 0);
+    /// assert_eq!(0, storage.iter().map(|x| x.2).sum::<i64>());
     ///
     /// # storage.validate();
     /// ```
-    pub fn query<'a, Q>(&'a self, query: &'a Q) -> impl Iterator<Item = &'a Element>
+    pub fn iter(&self) -> impl Iterator<Item = &Element> {
+        self.chunks.iter().flat_map(|chunk| chunk.iter())
+    }
+
+    /// Iterate over elements according to some Query. A variety of builtin queries are provided.
+    /// The simplest useful query is Everything, which iterates over every element in storage.
+    ///
+    /// ```
+    /// use retriever::prelude::*;
+    /// use std::borrow::Cow;
+    ///
+    /// let mut storage : Storage<u8,u16,(u8,u16,i64)> = Storage::new();
+    ///
+    /// storage.add((1,1000,17));
+    /// storage.add((1,1001,53));
+    /// storage.add((1,1002,-57));
+    /// storage.add((2,2000,29));
+    /// storage.add((2,2001,-19));
+    /// storage.add((3,3002,-23));
+    ///
+    /// // All of these do the same thing:
+    /// assert_eq!(0, storage.query(Everything).map(|x| x.2).sum::<i64>());
+    /// assert_eq!(0, storage.query(&Everything).map(|x| x.2).sum::<i64>());
+    /// assert_eq!(0, storage.query(&Chunks([0,1,2,3])).map(|x| x.2).sum::<i64>());
+    /// assert_eq!(0, storage.query(&Chunks(vec![0,1,2,3])).map(|x| x.2).sum::<i64>());
+    ///
+    /// // Query only a specific item:
+    /// assert_eq!(53, storage.query(ID.chunk(1).item(1001)).map(|x| x.2).sum::<i64>());
+    ///
+    /// // You can also filter to only look at positive numbers:
+    /// assert_eq!(99, storage.query(Everything.filter(|x : &(u8,u16,i64)| x.2 > 0)).map(|x| x.2).sum::<i64>());
+    ///
+    /// // Or accelerate the exact same filter using a SecondaryIndex:
+    /// let mut positive_numbers : SecondaryIndex<u8,(u8,u16,i64),Option<bool>,bool> =
+    ///     SecondaryIndex::new(&storage, |x : &(u8,u16,i64)| Cow::Owned(Some(x.2 > 0)));
+    /// assert_eq!(99, storage.query(&Everything.matching(&mut positive_numbers, &true)).map(|x| x.2).sum::<i64>());
+    ///
+    /// # storage.validate();
+    /// ```
+    pub fn query<'a, Q>(&'a self, query: Q) -> impl Iterator<Item = &'a Element>
     where
-        Q: Query<ChunkKey, ItemKey, Element>,
+        Q: Query<ChunkKey, ItemKey, Element> + Clone + 'a,
     {
         let chunk_idxs = query.chunk_idxs(&self);
 
@@ -419,7 +452,7 @@ where
             .map(move |idx| &self.chunks[idx])
             .flat_map(
                 move |chunk_storage: &ChunkStorage<ChunkKey, ItemKey, Element>| {
-                    chunk_storage.query(query)
+                    chunk_storage.query(query.clone())
                 },
             )
     }
@@ -470,15 +503,15 @@ where
     ///
     /// # storage.validate();
     /// ```
-    pub fn modify<Q, F>(&mut self, query: &Q, f: F)
+    pub fn modify<Q, F>(&mut self, query: Q, f: F)
     where
-        Q: for<'x, 'y> Query<ChunkKey, ItemKey, Element>,
+        Q: Query<ChunkKey, ItemKey, Element>,
         F: Fn(Editor<ChunkKey, ItemKey, Element>),
     {
         self.clean();
 
         for idx in query.chunk_idxs(self).into_idx_iter().flatten() {
-            self.chunks[idx].modify(query, &f);
+            self.chunks[idx].modify(&query, &f);
         }
     }
 
@@ -540,14 +573,14 @@ where
     ///
     /// # storage.validate();
     /// ```
-    pub fn remove<Q, F>(&mut self, query: &Q, f: F)
+    pub fn remove<Q, F>(&mut self, query: Q, f: F)
     where
         F: Fn(Element),
         Q: Query<ChunkKey, ItemKey, Element>,
     {
         for idx in query.chunk_idxs(self).into_idx_iter().flatten() {
             self.dirty(idx);
-            self.chunks[idx].remove(query, &f);
+            self.chunks[idx].remove(&query, &f);
         }
 
         self.clean();
