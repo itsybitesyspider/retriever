@@ -2,6 +2,7 @@ use super::chunk_storage::*;
 use super::entry::Entry;
 use crate::internal::hasher::HasherImpl;
 use crate::internal::mr::rvec::RVec;
+use crate::traits::idxset::IdxSet;
 use crate::traits::query::Query;
 use crate::traits::record::Record;
 use crate::traits::valid_key::ValidKey;
@@ -32,7 +33,7 @@ where
     /// Construct a new Storage.
     ///
     /// ```
-    /// use retriever::*;
+    /// use retriever::prelude::*;
     ///
     /// let mut storage : Storage<u64, &'static str, _> = Storage::new();
     ///
@@ -92,7 +93,7 @@ where
     /// Add the given element to this Storage.
     ///
     /// ```
-    /// use retriever::*;
+    /// use retriever::prelude::*;
     /// use std::borrow::Cow;
     ///
     /// // This example will be a database of student records.
@@ -161,7 +162,7 @@ where
         self.dirty.sort_unstable();
 
         for idx in self.dirty.iter().rev() {
-            if self.chunks[*idx].len() > 0 {
+            if !self.chunks[*idx].is_empty() {
                 continue;
             }
 
@@ -186,7 +187,7 @@ where
     /// (Tip! You can use Serde to serialize a list of element references and later deserialize them as values.)
     ///
     /// ```
-    /// use retriever::*;
+    /// use retriever::prelude::*;
     ///
     /// // Load some data into storage.
     /// let mut storage : Storage<(), usize, (usize, &'static str)> = Storage::new();
@@ -226,7 +227,7 @@ where
     /// Returns None if the data element does not exist.
     ///
     /// ```
-    /// use retriever::*;
+    /// use retriever::prelude::*;
     /// use std::borrow::Cow;
     ///
     /// #[derive(Clone)]
@@ -355,7 +356,7 @@ where
     /// mutable reference.
     ///
     /// ```
-    /// use retriever::*;
+    /// use retriever::prelude::*;
     ///
     /// let mut storage : Storage<(),usize,(usize,f64)> = Storage::new();
     ///
@@ -390,7 +391,7 @@ where
     /// The simplest useful query is Everything, which iterates over everything.
     ///
     /// ```
-    /// use retriever::*;
+    /// use retriever::prelude::*;
     ///
     /// let mut storage : Storage<usize,usize,(usize,usize,i64)> = Storage::new();
     ///
@@ -413,9 +414,14 @@ where
         let chunk_idxs = query.chunk_idxs(&self);
 
         chunk_idxs
-            .iter()
+            .into_idx_iter()
+            .flatten()
             .map(move |idx| &self.chunks[idx])
-            .flat_map(move |chunk_storage| chunk_storage.query(query))
+            .flat_map(
+                move |chunk_storage: &ChunkStorage<ChunkKey, ItemKey, Element>| {
+                    chunk_storage.query(query)
+                },
+            )
     }
 
     /// Iterate over a Query and modify each element via a callback.
@@ -427,8 +433,7 @@ where
     /// mutable reference.
     ///
     /// ```
-    /// use retriever::*;
-    /// use retriever::queries::everything::Everything;
+    /// use retriever::prelude::*;
     /// use std::borrow::Cow;
     ///
     /// struct BankAccount {
@@ -455,10 +460,7 @@ where
     /// storage.add(BankAccount { id: 5, balance: -13 });
     ///
     /// // Charge an overdraft fee to everyone with a negative balance.
-    /// // Take care to check that the account balance is actually negative
-    /// // before asking for a mutable reference, because just getting the
-    /// // mutable reference might trigger an expensive re-indexing operation.
-    /// storage.modify(Everything, |mut account| {
+    /// storage.modify(&Everything, |mut account| {
     ///   if account.get().balance < 0 {
     ///     account.get_mut().balance -= 25;
     ///   }
@@ -468,22 +470,22 @@ where
     ///
     /// # storage.validate();
     /// ```
-    pub fn modify<Q, F>(&mut self, mut query: Q, f: F)
+    pub fn modify<Q, F>(&mut self, query: &Q, f: F)
     where
         Q: for<'x, 'y> Query<ChunkKey, ItemKey, Element>,
         F: Fn(Editor<ChunkKey, ItemKey, Element>),
     {
         self.clean();
 
-        for idx in query.chunk_idxs(self).iter() {
-            self.chunks[idx].modify(&mut query, &f);
+        for idx in query.chunk_idxs(self).into_idx_iter().flatten() {
+            self.chunks[idx].modify(query, &f);
         }
     }
 
     /// Remove all of the specified elements from this storage.
     ///
     /// ```
-    /// use retriever::*;
+    /// use retriever::prelude::*;
     /// use retriever::queries::everything::Everything;
     /// use std::borrow::Cow;
     ///
@@ -523,7 +525,7 @@ where
     ///
     /// // Use the 'remove' operation to search for any embarassing log entries
     /// // and drop them.
-    /// storage.remove(Everything.filter(|log_entry: &LogEntry| {
+    /// storage.remove(&Everything.filter(|log_entry: &LogEntry| {
     ///   log_entry.msg.contains("illegal")
     /// }), std::mem::drop);
     ///
@@ -538,14 +540,14 @@ where
     ///
     /// # storage.validate();
     /// ```
-    pub fn remove<Q, F>(&mut self, mut query: Q, f: F)
+    pub fn remove<Q, F>(&mut self, query: &Q, f: F)
     where
         F: Fn(Element),
         Q: Query<ChunkKey, ItemKey, Element>,
     {
-        for idx in query.chunk_idxs(self).iter() {
+        for idx in query.chunk_idxs(self).into_idx_iter().flatten() {
             self.dirty(idx);
-            self.chunks[idx].remove(&mut query, &f);
+            self.chunks[idx].remove(query, &f);
         }
 
         self.clean();
@@ -565,6 +567,7 @@ where
     }
 
     /// Panic if this storage is malformed or broken in any way.
+    /// This is a slow operation and you shouldn't use it unless you suspect a problem.
     pub fn validate(&mut self) {
         self.clean();
 

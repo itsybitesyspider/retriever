@@ -2,7 +2,7 @@
 pub mod chunks;
 /// Query every element.
 pub mod everything;
-/// Query to filter certain elements
+/// Query to filter elements by predicate.
 pub mod filter;
-/// Query elements matching the secondary index
+/// Query to filter elements by a pre-computed index.
 pub mod secondary_index;

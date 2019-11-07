@@ -5,8 +5,9 @@ use crate::traits::valid_key::ValidKey;
 use crate::types::storage::Storage;
 use std::collections::HashMap;
 
-/// Summarize a storage using a cached multi-pass reduction. Repeated evaluations will only re-compute
-/// the parts of the storage that have changed.
+/// Summarize a `Storage` using a cached multi-layered reduction strategy.
+/// Repeated evaluations will only re-compute the parts of the reduction that have changed.
+/// If you've used map-reduce in something like CouchDB, this is a lot like that.
 pub struct Reduction<ChunkKey, Element, Summary> {
     parent_id: u64,
     group_size: usize,
@@ -23,14 +24,21 @@ where
     ChunkKey: ValidKey,
     Summary: Default + Clone,
 {
-    /// Create a new Reduction of a storage.
+    /// Create a new Reduction on a storage.
     ///
-    /// Reduction::expensive_new(..) returns immediately. The first time it is used, however,
-    /// each new Reduction will need to fully process every element of the storage it
-    /// summarizes. Creating and dropping a lot of Reductions is therefore wasteful and pointless.
+    /// A reduction is constructed from two rules: `Map` and `Fold` (or reduce). The only
+    /// difference between these rules is that the `Map` rule examines a single element while
+    /// the `Fold` rule examines a list of summaries. Both rules receive a view of the old
+    /// summary (which may just be `Default::default()`, if the summary has never been
+    /// been computed before.
     ///
-    /// Avoid calls to Reduction::expensive_new() by caching reductions as much as possible.
-    pub fn new_expensive<I, E, Map, Fold>(
+    /// Each rule constructs a new summary, and if the new summary is different from the old
+    /// summary, returns `Some(new_summary)`. If the summary is unchanged, indicate this by
+    /// returning `None`.
+    ///
+    /// Try to re-use Reductions as much as possible. If you drop a Reduction and re-create it,
+    /// then the Reduction's internal index has to be rebuilt, which might take a lot of time.
+    pub fn new<I, E, Map, Fold>(
         storage: &Storage<ChunkKey, I, E>,
         group_size: usize,
         map: Map,
@@ -86,11 +94,10 @@ where
         parent.gc(&mut self.gc_chunk_list, &mut self.chunkwise_reductions);
     }
 
-    /// Summarize the given Storage using the rules provided for this Reduction.
+    /// Reduce all of the elements of the given Storage down to a single value.
     ///
     /// ```
-    /// use retriever::*;
-    /// use retriever::summaries::reduction::*;
+    /// use retriever::prelude::*;
     /// use std::borrow::Cow;
     /// use std::collections::HashSet;
     ///
@@ -139,7 +146,7 @@ where
     ///
     /// let mut storage : Storage<usize, usize, Notification> = Storage::new();
     /// let mut reduction : Reduction<usize, Notification, NotificationSummary> =
-    ///   Reduction::new_expensive(
+    ///   Reduction::new(
     ///     &storage,
     ///     2,
     ///     |element: &Notification, was: &NotificationSummary| {
@@ -198,7 +205,7 @@ where
     ///   service: "games",
     /// });
     ///
-    /// let summary = reduction.summarize(&storage).unwrap();
+    /// let summary = reduction.reduce(&storage).unwrap();
     ///
     /// assert_eq!(summary.count, 4);
     /// assert_eq!(summary.priority, 8);
@@ -206,7 +213,7 @@ where
     /// assert!(summary.services.contains("mail"));
     /// assert!(summary.services.contains("games"));
     ///```
-    pub fn summarize<ItemKey>(
+    pub fn reduce<ItemKey>(
         &mut self,
         storage: &Storage<ChunkKey, ItemKey, Element>,
     ) -> Option<&Summary>
@@ -250,9 +257,8 @@ where
         self.reduction.update(&self.chunkwise_summaries)
     }
 
-    /// As `summarize`, however, this version only performs the reduction on a single chunk
-    /// and returns the Summary of that chunk's elements alone.
-    pub fn summarize_chunk<ItemKey>(
+    /// Reduce all of the elements of a single chunk down to a single value.
+    pub fn reduce_chunk<ItemKey>(
         &mut self,
         storage: &Storage<ChunkKey, ItemKey, Element>,
         chunk_key: &ChunkKey,

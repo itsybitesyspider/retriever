@@ -1,22 +1,28 @@
-use crate::internal::idxset::IdxSet;
+use crate::traits::idxset::IdxSet;
 use crate::traits::record::Record;
 use crate::traits::valid_key::ValidKey;
 use crate::types::chunk_storage::ChunkStorage;
 use crate::types::storage::Storage;
 use std::borrow::Borrow;
+use std::fmt::Debug;
 use std::hash::Hash;
 
 /// A Query defines a subset of the chunks and a subset of the data elements in each chunk.
 pub trait Query<ChunkKey, ItemKey, Element> {
+    /// An IdxSet representing the internal chunk indices that will be visited during this Query.
+    type ChunkIdxSet: IdxSet;
+    /// An IdxSet representing the internal item indices that will be visited during this Query.
+    type ItemIdxSet: IdxSet;
+
     /// Determine which chunks are part of this Query.
-    fn chunk_idxs(&self, storage: &Storage<ChunkKey, ItemKey, Element>) -> IdxSet;
+    fn chunk_idxs(&self, storage: &Storage<ChunkKey, ItemKey, Element>) -> Self::ChunkIdxSet;
 
     /// Determine which data elements of a particular chunk are part of this query.
     fn item_idxs(
         &self,
         chunk_key: &ChunkKey,
         chunk_storage: &ChunkStorage<ChunkKey, ItemKey, Element>,
-    ) -> IdxSet;
+    ) -> Self::ItemIdxSet;
 
     /// Test whether or not a particular data element actually belongs to this query.
     fn test(&self, element: &Element) -> bool;
@@ -33,9 +39,7 @@ pub trait Query<ChunkKey, ItemKey, Element> {
     /// Filter this Query by matching against a secondary index.
     ///
     /// ```
-    /// use retriever::*;
-    /// use retriever::queries::everything::*;
-    /// use retriever::queries::secondary_index::*;
+    /// use retriever::prelude::*;
     /// use std::borrow::Cow;
     ///
     /// struct Kitten {
@@ -56,9 +60,7 @@ pub trait Query<ChunkKey, ItemKey, Element> {
     /// let mut storage : Storage<(), String, Kitten> = Storage::new();
     ///
     /// let mut by_color : SecondaryIndex<(),Kitten,Vec<String>,String> =
-    /// SecondaryIndex::new_expensive(&storage, |kitten: &Kitten| {
-    ///   kitten.colors.clone()
-    /// });
+    /// SecondaryIndex::new(&storage, |kitten: &Kitten| Cow::Borrowed(&kitten.colors));
     ///
     /// storage.add(Kitten {
     ///   name: String::from("mittens"),
@@ -107,7 +109,7 @@ pub trait Query<ChunkKey, ItemKey, Element> {
         ChunkKey: ValidKey,
         ItemKey: ValidKey,
         Element: Record<ChunkKey, ItemKey>,
-        IndexKeys: ValidKey + Default,
+        IndexKeys: Clone + Debug + Default + Eq,
         IndexKey: ValidKey + Borrow<B>,
         B: Hash + Eq + 'a + ?Sized,
         for<'z> &'z IndexKeys: IntoIterator<Item = &'z IndexKey>,

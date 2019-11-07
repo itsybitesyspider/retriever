@@ -1,4 +1,4 @@
-use crate::internal::idxset::IdxSet;
+use crate::bits::bitfield::Bitfield;
 use crate::traits::query::Query;
 use crate::traits::record::Record;
 use crate::traits::valid_key::ValidKey;
@@ -9,7 +9,7 @@ use std::borrow::Cow;
 
 /// The nullary ID. Use this as the starting point to construct new IDs from scratch, like this:
 /// ```
-/// use retriever::*;
+/// use retriever::prelude::*;
 ///
 /// let my_id = ID.chunk("my-chunk").item(7);
 /// ```
@@ -19,7 +19,7 @@ pub const ID: Id<(), ()> = Id((), ());
 /// `get` or `entry` APIs that match a `Record` or the `query`/`modify`/`remove` APIs that accept a `Query`.
 ///
 /// ```
-/// use retriever::*;
+/// use retriever::prelude::*;
 ///
 /// let mut storage : Storage<u64,&'static str,_> = Storage::new();
 ///
@@ -41,7 +41,7 @@ pub const ID: Id<(), ()> = Id((), ());
 ///
 /// let new_password = String::from("PASSWORD!6");
 ///
-/// storage.modify(jroberts.item("password"), |mut editor| {
+/// storage.modify(&jroberts.item("password"), |mut editor| {
 ///   editor.get_mut().2 = String::from(new_password.clone());
 /// });
 /// assert_eq!(
@@ -79,8 +79,8 @@ where
         Id::new(self.0, new_item_key)
     }
 
-    /// Construct the `Id` that matches an existing `Record`. `Id` of a `Cow<Key>` is just as valid as
-    /// an `Id` of the `Key` itself.  See `cloned` for a way to construct a fully-owned `Id`.
+    /// Construct the `Id` that matches an existing `Record`. `Id<Cow<Key>>` is usually just as good as
+    /// an `Id<Key>` of the owned `Key` itself.  See `cloned` for a way to construct a fully-owned `Id`.
     pub fn of<'a, R>(record: &'a R) -> Id<Cow<'a, ChunkKey>, Cow<'a, ItemKey>>
     where
         R: Record<ChunkKey, ItemKey>,
@@ -124,16 +124,19 @@ where
     ItemKey: ValidKey,
     Element: Record<ChunkKey, ItemKey>,
 {
-    fn chunk_idxs(&self, storage: &Storage<ChunkKey, ItemKey, Element>) -> IdxSet {
-        IdxSet::from(storage.internal_idx_of(&self.chunk_key()))
+    type ChunkIdxSet = Bitfield;
+    type ItemIdxSet = Bitfield;
+
+    fn chunk_idxs(&self, storage: &Storage<ChunkKey, ItemKey, Element>) -> Self::ChunkIdxSet {
+        Bitfield::from(storage.internal_idx_of(&self.chunk_key()))
     }
 
     fn item_idxs(
         &self,
         _chunk_key: &ChunkKey,
         chunk_storage: &ChunkStorage<ChunkKey, ItemKey, Element>,
-    ) -> IdxSet {
-        IdxSet::from(chunk_storage.internal_idx_of(&self.item_key()))
+    ) -> Self::ItemIdxSet {
+        Bitfield::from(chunk_storage.internal_idx_of(&self.item_key()))
     }
 
     fn test(&self, element: &Element) -> bool {

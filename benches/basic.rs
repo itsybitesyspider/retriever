@@ -2,11 +2,8 @@
 extern crate criterion;
 
 use criterion::{BatchSize, Criterion, Throughput};
-use retriever::queries::chunks::Chunks;
-use retriever::queries::everything::Everything;
-use retriever::queries::secondary_index::SecondaryIndex;
-use retriever::summaries::reduction::Reduction;
-use retriever::{Id, Query, Record, Storage};
+use retriever::prelude::{Chunks, Everything, Id, Query, Record, SecondaryIndex, Storage};
+use retriever::types::reduction::Reduction;
 use std::borrow::Cow;
 use std::collections::HashMap;
 
@@ -109,9 +106,8 @@ fn bench_query_even_integers(storage: &Storage<u64, u64, X>) {
 }
 
 fn bench_query_even_integers_in_chunks(storage: &Storage<u64, u64, X>) {
-    let chunks: Vec<_> = (0x00..=0x0F).into_iter().collect();
     let sum = storage
-        .query(&Chunks(&chunks).filter(|x: &X| x.0 % 2 == 0))
+        .query(&Chunks(0x00..=0x0F).filter(|x: &X| x.0 % 2 == 0))
         .copied()
         .map(|x| x.0)
         .sum::<u64>();
@@ -120,7 +116,7 @@ fn bench_query_even_integers_in_chunks(storage: &Storage<u64, u64, X>) {
 }
 
 fn bench_modify_even_integers(storage: &mut Storage<u64, u64, X>) {
-    storage.modify(Everything.filter(|x: &X| x.1 % 2 == 0), |mut editor| {
+    storage.modify(&Everything.filter(|x: &X| x.1 % 2 == 0), |mut editor| {
         editor.get_mut().1 += 1;
     });
 
@@ -133,7 +129,7 @@ fn bench_modify_even_integers(storage: &mut Storage<u64, u64, X>) {
 }
 
 fn bench_remove_even_integers(storage: &mut Storage<u64, u64, X>) {
-    storage.remove(Everything.filter(|x: &X| x.1 % 2 == 0), std::mem::drop);
+    storage.remove(&Everything.filter(|x: &X| x.1 % 2 == 0), std::mem::drop);
 
     let result: Vec<X> = storage
         .query(&Everything.filter(|x: &X| x.1 % 2 == 0))
@@ -143,7 +139,7 @@ fn bench_remove_even_integers(storage: &mut Storage<u64, u64, X>) {
 }
 
 fn bench_discard_even_integers(storage: &mut Storage<u64, u64, X>) {
-    storage.remove(Everything.filter(|x: &X| x.1 % 2 == 0), std::mem::drop);
+    storage.remove(&Everything.filter(|x: &X| x.1 % 2 == 0), std::mem::drop);
 
     let result: Vec<X> = storage
         .query(&Everything.filter(|x: &X| x.1 % 2 == 0))
@@ -155,16 +151,13 @@ fn bench_discard_even_integers(storage: &mut Storage<u64, u64, X>) {
 fn bench_build_secondary_index(
     storage: &Storage<u64, u64, X>,
 ) -> SecondaryIndex<u64, X, Option<()>, ()> {
-    SecondaryIndex::new_expensive(
-        storage,
-        |x: &X| {
-            if x.1 % 0x1101 == 0 {
-                Some(())
-            } else {
-                None
-            }
-        },
-    )
+    SecondaryIndex::new(storage, |x: &X| {
+        if x.1 % 0x1101 == 0 {
+            Cow::Owned(Some(()))
+        } else {
+            Cow::Owned(None)
+        }
+    })
 }
 
 fn bench_build_secondary_index_first_time(
@@ -211,7 +204,7 @@ fn bench_rebuild_secondary_index_after_change(
 }
 
 fn bench_build_reduction_first_time(storage: &Storage<u64, u64, X>) -> Reduction<u64, X, u64> {
-    let mut reduction = Reduction::new_expensive(
+    let mut reduction = Reduction::new(
         storage,
         16,
         |x: &X, was| {
@@ -231,7 +224,7 @@ fn bench_build_reduction_first_time(storage: &Storage<u64, u64, X>) -> Reduction
         },
     );
 
-    assert_eq!(Some(&773050860), reduction.summarize(storage));
+    assert_eq!(Some(&773050860), reduction.reduce(storage));
 
     reduction
 }
@@ -240,7 +233,7 @@ fn bench_rebuild_reduction_after_change(
     mut storage: Storage<u64, u64, X>,
     mut reduction: Reduction<u64, X, u64>,
 ) {
-    assert_eq!(Some(&773050860), reduction.summarize(&mut storage));
+    assert_eq!(Some(&773050860), reduction.reduce(&mut storage));
 }
 
 fn criterion_benchmark(c: &mut Criterion) {

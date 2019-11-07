@@ -2,6 +2,7 @@ use super::entry::Entry;
 use super::id::Id;
 use crate::internal::hasher::HasherImpl;
 use crate::internal::mr::rvec::RVec;
+use crate::traits::idxset::IdxSet;
 use crate::traits::query::Query;
 use crate::traits::record::Record;
 use crate::traits::valid_key::ValidKey;
@@ -32,10 +33,17 @@ where
         }
     }
 
+    /// True IFF this `ChunkStorage` is empty.
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
+    /// Returns the number of elements in this `ChunkStorage`.
     pub fn len(&self) -> usize {
         self.data.len()
     }
 
+    /// Returns the chunk key used by all elements in this `ChunkStorage`.
     pub fn chunk_key(&self) -> &ChunkKey {
         &self.chunk_key
     }
@@ -96,19 +104,24 @@ where
     {
         query
             .item_idxs(&self.chunk_key, &self)
-            .iter()
+            .into_idx_iter()
+            .flatten()
             .map(move |idx| self.get_idx(idx))
             .filter(move |element| query.test(element))
     }
 
-    pub(crate) fn modify<'a, Q, F>(&'a mut self, query: &'a mut Q, f: F)
+    pub(crate) fn modify<'a, Q, F>(&'a mut self, query: &Q, f: F)
     where
         Q: Query<ChunkKey, ItemKey, Element>,
         F: Fn(Editor<ChunkKey, ItemKey, Element>),
     {
         let chunk_key: ChunkKey = self.chunk_key.clone();
 
-        for idx in query.item_idxs(&self.chunk_key, &self).iter() {
+        for idx in query
+            .item_idxs(&self.chunk_key, &self)
+            .into_idx_iter()
+            .flatten()
+        {
             let item_key = self.data[idx].item_key().into_owned();
 
             if !query.test(&self.data[idx]) {
@@ -122,7 +135,7 @@ where
         }
     }
 
-    pub(crate) fn remove<'a, Q, F>(&'a mut self, query: &'a mut Q, f: &F)
+    pub(crate) fn remove<'a, Q, F>(&'a mut self, query: &Q, f: &F)
     where
         F: Fn(Element),
         Q: Query<ChunkKey, ItemKey, Element>,
@@ -130,7 +143,7 @@ where
         let mut last_removed_idx = self.data.len();
         let idxs = query.item_idxs(&self.chunk_key, &self);
 
-        for idx in idxs.iter().rev() {
+        for idx in idxs.into_idx_iter().flatten().rev() {
             if query.test(&self.data[idx]) {
                 assert!(idx < last_removed_idx);
                 last_removed_idx = idx;

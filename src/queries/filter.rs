@@ -1,11 +1,10 @@
-use crate::internal::idxset::IdxSet;
 use crate::traits::query::Query;
 use crate::traits::record::Record;
 use crate::traits::valid_key::ValidKey;
 use crate::types::chunk_storage::ChunkStorage;
 use crate::types::storage::Storage;
 
-/// Query every element.
+/// Filter a `Query` by a predicate.
 #[derive(Clone, Copy)]
 pub struct Filter<Q, F> {
     parent: Q,
@@ -13,7 +12,8 @@ pub struct Filter<Q, F> {
 }
 
 impl<Q, F> Filter<Q, F> {
-    /// Construct a new filter. Prefer the Query::filter trait method instead.
+    /// Construct a new filter query. You probably don't want to call this constructor directly.
+    /// Prefer the `Query::filter` method instead.
     pub fn new(parent: Q, filter: F) -> Self {
         Filter { parent, filter }
     }
@@ -27,7 +27,10 @@ where
     Q: Query<ChunkKey, ItemKey, Element>,
     F: Fn(&Element) -> bool,
 {
-    fn chunk_idxs(&self, storage: &Storage<ChunkKey, ItemKey, Element>) -> IdxSet {
+    type ChunkIdxSet = Q::ChunkIdxSet;
+    type ItemIdxSet = Q::ItemIdxSet;
+
+    fn chunk_idxs(&self, storage: &Storage<ChunkKey, ItemKey, Element>) -> Self::ChunkIdxSet {
         self.parent.chunk_idxs(storage)
     }
 
@@ -35,7 +38,7 @@ where
         &self,
         chunk_key: &ChunkKey,
         chunk_storage: &ChunkStorage<ChunkKey, ItemKey, Element>,
-    ) -> IdxSet {
+    ) -> Self::ItemIdxSet {
         self.parent.item_idxs(chunk_key, chunk_storage)
     }
 
