@@ -30,6 +30,25 @@ where
     index_key: Cow<'a, B>,
 }
 
+impl<'a, Q, B, ChunkKey, Element, IndexKeys, IndexKey> Clone for MatchingSecondaryIndex<'a, Q, B, ChunkKey, Element, IndexKeys, IndexKey>
+where
+  B: ToOwned + Hash + Eq + ?Sized + 'a,
+  &'a B: ValidKey,
+  IndexKey: ValidKey + Borrow<B>,
+  IndexKeys: Clone + Debug + Default + Eq,
+  for<'y> &'y IndexKeys: IntoIterator<Item = &'y IndexKey>,
+  Q: Clone,
+  Cow<'a,B>: Clone,
+{
+  fn clone(&self) -> Self {
+    MatchingSecondaryIndex {
+      query: self.query.clone(),
+      secondary_index: self.secondary_index.clone(),
+      index_key: self.index_key.clone(),
+    }
+  }
+}
+
 struct ChunkSecondaryIndex<IndexKey>
 where
     IndexKey: ValidKey,
