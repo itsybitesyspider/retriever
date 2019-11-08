@@ -166,7 +166,7 @@ fn bench_build_secondary_index_first_time(
     let mut secondary = bench_build_secondary_index(storage);
 
     let count = storage
-        .query(&Everything.matching(&mut secondary, &()))
+        .query(&Everything.matching(&mut secondary, Cow::Owned(())))
         .count();
     assert_eq!(10, count);
 
@@ -178,7 +178,7 @@ fn bench_query_secondary_index_next_time(
     mut secondary: SecondaryIndex<u64, X, Option<()>, ()>,
 ) {
     let count = storage
-        .query(&Everything.matching(&mut secondary, &()))
+        .query(&Everything.matching(&mut secondary, Cow::Owned(())))
         .count();
     assert_eq!(10, count);
 }
@@ -198,7 +198,7 @@ fn bench_rebuild_secondary_index_after_change(
     mut secondary: SecondaryIndex<u64, X, Option<()>, ()>,
 ) {
     let count = storage
-        .query(&Everything.matching(&mut secondary, &()))
+        .query(&Everything.matching(&mut secondary, Cow::Owned(())))
         .count();
     assert_eq!(10, count);
 }

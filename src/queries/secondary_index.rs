@@ -19,14 +19,15 @@ use std::sync::RwLock;
 /// A Query matching against a SecondaryIndex. Construct using Query::matching(&SecondaryIndex, &IndexKey).
 pub struct MatchingSecondaryIndex<'a, Q, B, ChunkKey, Element, IndexKeys, IndexKey>
 where
+    B: ToOwned + Hash + Eq + ?Sized + 'a,
+    &'a B: ValidKey,
     IndexKey: ValidKey + Borrow<B>,
     IndexKeys: Clone + Debug + Default + Eq,
     for<'y> &'y IndexKeys: IntoIterator<Item = &'y IndexKey>,
-    B: Hash + Eq + ?Sized,
 {
     query: Q,
-    secondary_index: RwLock<&'a mut SecondaryIndex<ChunkKey, Element, IndexKeys, IndexKey>>,
-    index_key: &'a B,
+    secondary_index: SecondaryIndex<ChunkKey, Element, IndexKeys, IndexKey>,
+    index_key: Cow<'a, B>,
 }
 
 struct ChunkSecondaryIndex<IndexKey>
@@ -36,8 +37,46 @@ where
     reverse_index: HashMap<IndexKey, Bitset>,
 }
 
-/// A secondary index of the records in a storage.
-pub struct SecondaryIndex<ChunkKey, Element, IndexKeys, IndexKey>
+/// A secondary index of the records in a `Storage`. You can attach as many `SecondaryIndices`
+/// to a given `Storage` as you want. Each `SecondaryIndex` will index each stored element under
+/// zero or more key values (but only one key type).
+///
+/// You must provide an indexing rule that looks at any given element and returns a collection of
+/// zero or more keys for that element. For example, in a `Storage` of automobiles, we might index
+/// by the model year using the collection type `Option(u32)`. On the other hand, in a `Storage` of
+/// paintings, we might index by the dominant colors featured in the painting using the collection
+/// type `Vec<String>`. In any case, if our index rules returns the value `None` or `vec![]`, then
+/// we will not have provided any secondary index keys and the element will not be indexed at all.
+///
+/// A case with mentioning is the collection type `Option(())` with its secondary index key `()`.
+/// This indexing rule would index all elements that have some property. Elements that do
+/// not have the property would not be indexed at all. This is preferable to using `Option(bool)`,
+/// for example, assuming that we know that we'll only ever search for the `true` case.
+///
+/// A `SecondaryIndex` is associated with exactly one storage.
+/// If you attempt to use a `SecondaryIndex` with a `Storage` other than the one it was
+/// initialized with, it will panic.
+pub struct SecondaryIndex<ChunkKey, Element, IndexKeys, IndexKey>(
+    Arc<RwLock<SecondaryIndexImpl<ChunkKey, Element, IndexKeys, IndexKey>>>,
+)
+where
+    IndexKey: ValidKey,
+    IndexKeys: Clone + Debug + Default + Eq,
+    for<'x> &'x IndexKeys: IntoIterator<Item = &'x IndexKey>;
+
+impl<ChunkKey, Element, IndexKeys, IndexKey> Clone
+    for SecondaryIndex<ChunkKey, Element, IndexKeys, IndexKey>
+where
+    IndexKey: ValidKey,
+    IndexKeys: Clone + Debug + Default + Eq,
+    for<'x> &'x IndexKeys: IntoIterator<Item = &'x IndexKey>,
+{
+    fn clone(&self) -> Self {
+        SecondaryIndex(Arc::clone(&self.0))
+    }
+}
+
+struct SecondaryIndexImpl<ChunkKey, Element, IndexKeys, IndexKey>
 where
     IndexKey: ValidKey,
     IndexKeys: Clone + Debug + Default + Eq,
@@ -79,14 +118,35 @@ where
         E: Record<C, I>,
         F: Fn(&Element) -> Cow<IndexKeys> + 'static,
     {
-        SecondaryIndex {
+        SecondaryIndex(Arc::new(RwLock::new(SecondaryIndexImpl {
             parent_id: storage.id(),
             gc_chunk_list: RVec::default(),
             index: HashMap::with_hasher(crate::internal::hasher::HasherImpl::default()),
-            rules: Arc::new(Self::indexing_rules(f)),
-        }
+            rules: Arc::new(
+                SecondaryIndexImpl::<ChunkKey, Element, IndexKeys, IndexKey>::indexing_rules(f),
+            ),
+        })))
     }
 
+    /// Panic if this storage is malformed or broken in any way.
+    /// This is a slow operation and you shouldn't use it unless you suspect a problem.
+    pub fn validate<ItemKey>(&self, parent: &Storage<ChunkKey, ItemKey, Element>)
+    where
+        ItemKey: ValidKey,
+        Element: Record<ChunkKey, ItemKey>,
+    {
+        self.0.write().unwrap().validate(parent);
+    }
+}
+
+impl<ChunkKey, Element, IndexKeys, IndexKey>
+    SecondaryIndexImpl<ChunkKey, Element, IndexKeys, IndexKey>
+where
+    ChunkKey: ValidKey,
+    IndexKey: ValidKey,
+    IndexKeys: Clone + Debug + Default + Eq,
+    for<'x> &'x IndexKeys: IntoIterator<Item = &'x IndexKey>,
+{
     fn indexing_rules<F>(f: F) -> SummaryRules<Element, IndexKeys, ChunkSecondaryIndex<IndexKey>>
     where
         F: Fn(&Element) -> Cow<IndexKeys> + 'static,
@@ -175,19 +235,20 @@ impl<'a, Q, B, ChunkKey, Element, IndexKeys, IndexKey>
     MatchingSecondaryIndex<'a, Q, B, ChunkKey, Element, IndexKeys, IndexKey>
 where
     ChunkKey: ValidKey,
-    B: Hash + Eq + ?Sized + 'a,
+    B: ToOwned + Hash + Eq + ?Sized + 'a,
+    &'a B: ValidKey,
     IndexKeys: Clone + Debug + Default + Eq,
     IndexKey: ValidKey + Borrow<B>,
     for<'x> &'x IndexKeys: IntoIterator<Item = &'x IndexKey>,
 {
     pub(crate) fn new(
         query: Q,
-        secondary_index: &'a mut SecondaryIndex<ChunkKey, Element, IndexKeys, IndexKey>,
-        index_key: &'a B,
+        secondary_index: &SecondaryIndex<ChunkKey, Element, IndexKeys, IndexKey>,
+        index_key: Cow<'a, B>,
     ) -> Self {
         MatchingSecondaryIndex {
             query,
-            secondary_index: RwLock::new(secondary_index),
+            secondary_index: secondary_index.clone(),
             index_key,
         }
     }
@@ -196,10 +257,11 @@ where
 impl<'a, Q, B, ChunkKey, ItemKey, Element, IndexKeys, IndexKey> Query<ChunkKey, ItemKey, Element>
     for MatchingSecondaryIndex<'a, Q, B, ChunkKey, Element, IndexKeys, IndexKey>
 where
-    Q: Query<ChunkKey, ItemKey, Element> + 'a,
+    Q: Query<ChunkKey, ItemKey, Element>,
+    B: ToOwned + Hash + Eq + ?Sized + 'a,
+    &'a B: ValidKey,
     ChunkKey: ValidKey,
-    ItemKey: ValidKey + 'a,
-    B: Hash + Eq + 'a + ?Sized,
+    ItemKey: ValidKey,
     IndexKeys: Clone + Debug + Default + Eq,
     IndexKey: ValidKey + Borrow<B>,
     Element: Record<ChunkKey, ItemKey>,
@@ -209,17 +271,17 @@ where
     type ItemIdxSet = Intersection<Q::ItemIdxSet, Option<Bitset>>;
 
     fn chunk_idxs(&self, storage: &Storage<ChunkKey, ItemKey, Element>) -> Self::ChunkIdxSet {
-        let mut secondary_index = self.secondary_index.write().unwrap();
-        assert_eq!(secondary_index.parent_id, storage.id(), "Id mismatch: a secondary index may only be used with it's parent Storage, never any other Storage");
+        let mut secondary_index_impl = self.secondary_index.0.write().unwrap();
+        assert_eq!(secondary_index_impl.parent_id, storage.id(), "Id mismatch: a secondary index may only be used with it's parent Storage, never any other Storage");
         let result = self.query.chunk_idxs(storage);
 
-        secondary_index.gc(storage);
+        secondary_index_impl.gc(storage);
         for idx in result.clone().into_idx_iter().flatten() {
-            let chunk_idx = secondary_index.gc_chunk_list[idx]
+            let chunk_idx = secondary_index_impl.gc_chunk_list[idx]
                 .as_ref()
                 .cloned()
                 .expect("gc_chunk_list should not contain None immediately after gc");
-            secondary_index.update_chunk(&chunk_idx, &storage.internal_rvec()[idx]);
+            secondary_index_impl.update_chunk(&chunk_idx, &storage.internal_rvec()[idx]);
         }
 
         result
@@ -230,14 +292,17 @@ where
         chunk_key: &ChunkKey,
         chunk_storage: &ChunkStorage<ChunkKey, ItemKey, Element>,
     ) -> Self::ItemIdxSet {
+        let secondary_index_impl = self.secondary_index.0.read().unwrap();
         let parent_idxs = self.query.item_idxs(chunk_key, chunk_storage);
-        let ours_idxs: Option<Bitset> = self
-            .secondary_index
-            .read()
-            .unwrap()
+        let ours_idxs: Option<Bitset> = secondary_index_impl
             .index
             .get(chunk_key)
-            .and_then(|map_summarize| map_summarize.peek().reverse_index.get(self.index_key))
+            .and_then(|map_summarize| {
+                map_summarize
+                    .peek()
+                    .reverse_index
+                    .get(self.index_key.borrow())
+            })
             .cloned();
 
         IdxSet::intersection(parent_idxs, ours_idxs)
@@ -272,7 +337,7 @@ mod test {
         }
 
         let mut storage: Storage<(), String, Kitten> = Storage::new();
-        let mut by_color: SecondaryIndex<(), Kitten, Vec<String>, String> =
+        let by_color: SecondaryIndex<(), Kitten, Vec<String>, String> =
             SecondaryIndex::new(&storage, |kitten: &Kitten| Cow::Borrowed(&kitten.colors));
 
         storage.add(Kitten {
@@ -294,19 +359,25 @@ mod test {
         by_color.validate(&storage);
 
         storage.remove(
-            &Everything.matching(&mut by_color, "orange"),
+            &Everything.matching(&by_color, Cow::Borrowed("orange")),
             std::mem::drop,
         );
 
         storage.validate();
         by_color.validate(&storage);
 
-        storage.remove(&Everything.matching(&mut by_color, "white"), std::mem::drop);
+        storage.remove(
+            &Everything.matching(&by_color, Cow::Borrowed("white")),
+            std::mem::drop,
+        );
 
         storage.validate();
         by_color.validate(&storage);
 
-        storage.remove(&Everything.matching(&mut by_color, "black"), std::mem::drop);
+        storage.remove(
+            &Everything.matching(&by_color, Cow::Borrowed("black")),
+            std::mem::drop,
+        );
 
         storage.validate();
         by_color.validate(&storage);

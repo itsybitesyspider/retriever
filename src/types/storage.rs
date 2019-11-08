@@ -436,7 +436,7 @@ where
     /// // Or accelerate the exact same filter using a SecondaryIndex:
     /// let mut positive_numbers : SecondaryIndex<u8,(u8,u16,i64),Option<bool>,bool> =
     ///     SecondaryIndex::new(&storage, |x : &(u8,u16,i64)| Cow::Owned(Some(x.2 > 0)));
-    /// assert_eq!(99, storage.query(&Everything.matching(&mut positive_numbers, &true)).map(|x| x.2).sum::<i64>());
+    /// assert_eq!(99, storage.query(&Everything.matching(&mut positive_numbers, Cow::Owned(true))).map(|x| x.2).sum::<i64>());
     ///
     /// # storage.validate();
     /// ```

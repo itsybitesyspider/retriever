@@ -175,7 +175,7 @@ let mut by_parents = SecondaryIndex::new(&storage,
 
 // Use an index to search for all children of Yeller:
 let yeller_id = ID.chunk(2010).item(String::from("Yeller"));
-let q = Everything.matching(&mut by_parents, &yeller_id);
+let q = Everything.matching(&mut by_parents, Cow::Borrowed(&yeller_id));
 let mut children_of_yeller : Vec<_> = storage.query(&q)
   .map(|puppy: &Puppy| &puppy.name).collect();
 children_of_yeller.sort();

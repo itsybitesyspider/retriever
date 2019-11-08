@@ -177,7 +177,7 @@
 //!
 //! // Use an index to search for all children of Yeller:
 //! let yeller_id = ID.chunk(2010).item(String::from("Yeller"));
-//! let q = Everything.matching(&mut by_parents, &yeller_id);
+//! let q = Everything.matching(&mut by_parents, Cow::Borrowed(&yeller_id));
 //! let mut children_of_yeller : Vec<_> = storage.query(&q)
 //!   .map(|puppy: &Puppy| &puppy.name).collect();
 //! children_of_yeller.sort();
@@ -307,7 +307,7 @@ mod test {
     #[test]
     fn test_remove_and_replace_chunk_with_secondary_index() {
         let mut storage: Storage<u64, u64, X> = Storage::new();
-        let mut index: SecondaryIndex<u64, X, Option<u64>, u64> =
+        let index: SecondaryIndex<u64, X, Option<u64>, u64> =
             SecondaryIndex::new(&storage, |x: &X| Cow::Owned(Some(x.1 & 0x1)));
 
         storage.add(X(0x101, 0x101));
@@ -321,7 +321,9 @@ mod test {
 
         assert_eq!(
             4,
-            storage.query(&Everything.matching(&mut index, &0)).count()
+            storage
+                .query(&Everything.matching(&index, Cow::Owned(0)))
+                .count()
         );
 
         storage.remove_chunk(&0);
@@ -337,7 +339,9 @@ mod test {
 
         assert_eq!(
             4,
-            storage.query(&Everything.matching(&mut index, &0)).count()
+            storage
+                .query(&Everything.matching(&index, Cow::Owned(0)))
+                .count()
         );
     }
 
@@ -374,7 +378,7 @@ mod test {
     fn test_query_by_id() {
         let mut storage: Storage<u64, u64, X> = Storage::new();
 
-        let mut even_odd: SecondaryIndex<u64, X, Option<bool>, bool> =
+        let even_odd: SecondaryIndex<u64, X, Option<bool>, bool> =
             SecondaryIndex::new(&storage, |x: &X| Cow::Owned(Some(x.1 % 2 == 1)));
 
         storage.add(X(0x000, 0x000));
@@ -388,13 +392,13 @@ mod test {
         assert_eq!(
             Some(&X(0x101, 0x111)),
             storage
-                .query(&Id(0x0, 0x101).matching(&mut even_odd, &true))
+                .query(&Id(0x0, 0x101).matching(&even_odd, Cow::Owned(true)))
                 .next()
         );
         assert_eq!(
             None,
             storage
-                .query(&Id(0x0, 0x101).matching(&mut even_odd, &false))
+                .query(&Id(0x0, 0x101).matching(&even_odd, Cow::Owned(false)))
                 .next()
         );
     }
@@ -403,7 +407,7 @@ mod test {
     fn test_query_by_chunks() {
         let mut storage: Storage<u64, u64, X> = Storage::new();
 
-        let mut even_odd: SecondaryIndex<u64, X, Option<bool>, bool> =
+        let even_odd: SecondaryIndex<u64, X, Option<bool>, bool> =
             SecondaryIndex::new(&storage, |x: &X| Cow::Owned(Some(x.1 % 2 == 1)));
 
         storage.add(X(0x000, 0x000));
@@ -417,7 +421,7 @@ mod test {
         storage.add(X(0x222, 0x222));
 
         let odd_items_even_chunks: Vec<X> = storage
-            .query(&Chunks([0x0, 0x2]).matching(&mut even_odd, &true))
+            .query(&Chunks([0x0, 0x2]).matching(&even_odd, Cow::Owned(true)))
             .cloned()
             .collect();
         assert_eq!(
@@ -430,10 +434,10 @@ mod test {
     fn test_index_intersections() {
         let mut storage: Storage<u64, u64, X> = Storage::new();
 
-        let mut even_odd: SecondaryIndex<u64, X, Option<bool>, bool> =
+        let even_odd: SecondaryIndex<u64, X, Option<bool>, bool> =
             SecondaryIndex::new(&storage, |x: &X| Cow::Owned(Some(x.1 % 2 == 1)));
 
-        let mut small: SecondaryIndex<u64, X, Option<bool>, bool> =
+        let small: SecondaryIndex<u64, X, Option<bool>, bool> =
             SecondaryIndex::new(&storage, |x: &X| Cow::Owned(Some(x.1 < 0x600)));
 
         storage.add(X(0x000, 0x000));
@@ -448,8 +452,8 @@ mod test {
         let small_odds: Vec<X> = storage
             .query(
                 &Everything
-                    .matching(&mut even_odd, &true)
-                    .matching(&mut small, &true),
+                    .matching(&even_odd, Cow::Owned(true))
+                    .matching(&small, Cow::Owned(true)),
             )
             .cloned()
             .collect();
@@ -487,7 +491,7 @@ mod test {
                 }
             },
         );
-        let mut index: SecondaryIndex<u64, X, Option<u64>, u64> =
+        let index: SecondaryIndex<u64, X, Option<u64>, u64> =
             SecondaryIndex::new(&storage, |x: &X| Cow::Owned(Some(x.1)));
 
         let k = 100_000;
@@ -506,7 +510,9 @@ mod test {
                 .or_panic();
 
             storage
-                .query(&Everything.matching(&mut index, &rand::thread_rng().gen_range(0, 10)))
+                .query(
+                    &Everything.matching(&index, Cow::Owned(rand::thread_rng().gen_range(0, 10))),
+                )
                 .count();
             reduction.reduce(&storage);
         }

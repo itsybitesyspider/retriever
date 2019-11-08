@@ -80,24 +80,24 @@ pub trait Query<ChunkKey, ItemKey, Element> {
     ///   colors: vec![String::from("black")]
     /// });
     ///
-    /// for kitten in storage.query(&Everything.matching(&mut by_color, "orange")) {
+    /// for kitten in storage.query(&Everything.matching(&mut by_color, Cow::Borrowed("orange"))) {
     ///   assert_eq!("furball", &kitten.name);
     /// }
     ///
-    /// assert_eq!(2, storage.query(&Everything.matching(&mut by_color, "black")).count());
+    /// assert_eq!(2, storage.query(&Everything.matching(&mut by_color, Cow::Borrowed("black"))).count());
     ///
     /// # storage.validate();
     /// # by_color.validate(&mut storage);
     /// ```
     fn matching<'a, B, IndexKeys, IndexKey>(
         self,
-        secondary_index: &'a mut crate::queries::secondary_index::SecondaryIndex<
+        secondary_index: &'a crate::queries::secondary_index::SecondaryIndex<
             ChunkKey,
             Element,
             IndexKeys,
             IndexKey,
         >,
-        key: &'a B,
+        key: Cow<'a, B>,
     ) -> crate::queries::secondary_index::MatchingSecondaryIndex<
         'a,
         Self,
@@ -114,7 +114,8 @@ pub trait Query<ChunkKey, ItemKey, Element> {
         Element: Record<ChunkKey, ItemKey>,
         IndexKeys: Clone + Debug + Default + Eq,
         IndexKey: ValidKey + Borrow<B>,
-        B: Hash + Eq + 'a + ?Sized,
+        B: ToOwned + Hash + Eq + ?Sized + 'a,
+        &'a B: ValidKey,
         for<'z> &'z IndexKeys: IntoIterator<Item = &'z IndexKey>,
     {
         crate::queries::secondary_index::MatchingSecondaryIndex::new(self, secondary_index, key)
