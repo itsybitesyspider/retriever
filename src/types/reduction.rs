@@ -8,6 +8,12 @@ use std::collections::HashMap;
 /// Summarize a `Storage` using a cached multi-layered reduction strategy.
 /// Repeated evaluations will only re-compute the parts of the reduction that have changed.
 /// If you've used map-reduce in something like CouchDB, this is a lot like that.
+///
+/// # Type Parameters
+///
+/// * `ChunkKey`: matches the `ChunkKey` of the `Storage`.
+/// * `Element`: matches the `Element` of the `Storage`.
+/// * `Summary`: this is the type of the result of summarizing all of the `Elements` in `Storage`.
 pub struct Reduction<ChunkKey, Element, Summary> {
     parent_id: u64,
     group_size: usize,
@@ -38,15 +44,23 @@ where
     ///
     /// Try to re-use Reductions as much as possible. If you drop a Reduction and re-create it,
     /// then the Reduction's internal index has to be rebuilt, which might take a lot of time.
-    pub fn new<I, E, Map, Fold>(
-        storage: &Storage<ChunkKey, I, E>,
+    ///
+    /// # Type Parameters
+    ///
+    /// * `I`: this is the `ItemKey` matching the `Storage`.
+    /// * `Map`: this operation produces a `Summary` of a single `Element`. If the result `Summary`
+    ///   has not changed since the last `Summary`, return `None`.
+    /// * `Fold`: this operations folds several `Summaries` into one `Summary`. If the result
+    ///   `Summary` has not changed since the last `Summary`, return `None`.
+    pub fn new<I, Map, Fold>(
+        storage: &Storage<ChunkKey, I, Element>,
         group_size: usize,
         map: Map,
         fold: Fold,
     ) -> Self
     where
         I: ValidKey,
-        E: Record<ChunkKey, I>,
+        Element: Record<ChunkKey, I>,
         Map: Fn(&Element, &Summary) -> Option<Summary> + Clone + 'static,
         Fold: Fn(&[Summary], &Summary) -> Option<Summary> + Clone + 'static,
     {
@@ -95,6 +109,8 @@ where
     }
 
     /// Reduce all of the elements of the given Storage down to a single value.
+    ///
+    /// # Example
     ///
     /// ```
     /// use retriever::prelude::*;
@@ -213,13 +229,10 @@ where
     /// assert!(summary.services.contains("mail"));
     /// assert!(summary.services.contains("games"));
     ///```
-    pub fn reduce<ItemKey>(
-        &mut self,
-        storage: &Storage<ChunkKey, ItemKey, Element>,
-    ) -> Option<&Summary>
+    pub fn reduce<I>(&mut self, storage: &Storage<ChunkKey, I, Element>) -> Option<&Summary>
     where
-        Element: Record<ChunkKey, ItemKey>,
-        ItemKey: ValidKey,
+        Element: Record<ChunkKey, I>,
+        I: ValidKey,
     {
         assert_eq!(
             self.parent_id,
@@ -258,14 +271,14 @@ where
     }
 
     /// Reduce all of the elements of a single chunk down to a single value.
-    pub fn reduce_chunk<ItemKey>(
+    pub fn reduce_chunk<I>(
         &mut self,
-        storage: &Storage<ChunkKey, ItemKey, Element>,
+        storage: &Storage<ChunkKey, I, Element>,
         chunk_key: &ChunkKey,
     ) -> Option<&Summary>
     where
-        Element: Record<ChunkKey, ItemKey>,
-        ItemKey: ValidKey,
+        Element: Record<ChunkKey, I>,
+        I: ValidKey,
     {
         assert_eq!(
             self.parent_id,

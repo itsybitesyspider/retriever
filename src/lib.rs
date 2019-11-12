@@ -8,10 +8,6 @@
 //! Retriever is ideal when you need to index a collection by multiple properties,
 //! you need a variety of relations between elements in a collection, or
 //! or you need to maintain summary statistics about a collection.
-//! Retriever can make your application data more easily discoverable, searchable, and auditable
-//! compared to a "big jumble of plain old rust types."
-//! Retriever can help reduce data redundancy and establish a single source of truth
-//! for all values.
 //!
 //! ![](./Callie_the_golden_retriever_puppy.jpg)
 //!
@@ -291,7 +287,7 @@ mod test {
     use crate::types::reduction::Reduction;
     use std::borrow::Cow;
 
-    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
     struct X(u64, u64);
 
     impl Record<u64, u64> for X {
@@ -449,7 +445,7 @@ mod test {
         storage.add(X(0x606, 0x666));
         storage.add(X(0x707, 0x777));
 
-        let small_odds: Vec<X> = storage
+        let mut small_odds: Vec<X> = storage
             .query(
                 &Everything
                     .matching(&even_odd, Cow::Owned(true))
@@ -464,6 +460,27 @@ mod test {
         assert!(small_odds.contains(&X(0x505, 0x555)));
         assert!(!small_odds.contains(&X(0x202, 0x222)));
         assert!(!small_odds.contains(&X(0x707, 0x777)));
+
+        // Reverse the order of the intersection to get the same result
+        let mut odd_smalls: Vec<X> = storage
+            .query(
+                &Everything
+                    .matching(&small, Cow::Owned(true))
+                    .matching(&even_odd, Cow::Owned(true)),
+            )
+            .cloned()
+            .collect();
+
+        assert_eq!(3, small_odds.len());
+        assert!(odd_smalls.contains(&X(0x101, 0x111)));
+        assert!(odd_smalls.contains(&X(0x303, 0x333)));
+        assert!(odd_smalls.contains(&X(0x505, 0x555)));
+        assert!(!odd_smalls.contains(&X(0x202, 0x222)));
+        assert!(!odd_smalls.contains(&X(0x707, 0x777)));
+
+        small_odds.sort();
+        odd_smalls.sort();
+        assert_eq!(small_odds, odd_smalls);
     }
 
     #[test]
@@ -516,5 +533,50 @@ mod test {
                 .count();
             reduction.reduce(&storage);
         }
+    }
+
+    #[test]
+    fn test_entry() {
+        let mut storage: Storage<u64, u64, X> = Storage::new();
+
+        storage
+            .entry(&ID.chunk(0).item(0))
+            .or_insert_with(|| X(0, 0));
+        storage
+            .entry(&ID.chunk(0).item(0))
+            .or_insert_with(|| X(0, 0))
+            .1 += 1;
+        storage.entry(&ID.chunk(0).item(0)).and_modify(|x| {
+            x.1 += 10;
+        });
+        storage
+            .entry(&ID.chunk(0).item(0))
+            .or_insert_with(|| X(0, 0))
+            .1 += 1;
+        assert_eq!(Some(&X(0, 12)), storage.entry(&ID.chunk(0).item(0)).get());
+        storage.entry(&ID.chunk(0).item(0)).remove_if(|x| x.1 != 12);
+        storage.entry(&ID.chunk(0).item(0)).or_panic();
+        storage.entry(&ID.chunk(0).item(0)).remove_if(|x| x.1 == 12);
+        assert_eq!(None, storage.entry(&ID.chunk(0).item(0)).get());
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_entry_with_bogus_chunk() {
+        let mut storage: Storage<u64, u64, X> = Storage::new();
+
+        storage
+            .entry(&ID.chunk(0).item(16))
+            .or_insert_with(|| X(16, 0));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_entry_with_bogus_item() {
+        let mut storage: Storage<u64, u64, X> = Storage::new();
+
+        storage
+            .entry(&ID.chunk(0).item(16))
+            .or_insert_with(|| X(1, 0));
     }
 }

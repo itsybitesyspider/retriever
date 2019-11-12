@@ -15,7 +15,15 @@ use std::sync::atomic::Ordering;
 
 static ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-/// Chunked, indexed storage
+/// Chunked, indexed storage.
+///
+/// # Type Parameters
+///
+/// * `ChunkKey`: each `Element` is a `Record` that has exactly one `ChunkKey`. All `Elements`
+///   with the same value of `ChunkKey` are stored together in a single chunk. If you aren't
+///   sure what `ChunkKey` to use, choose `()`.
+/// * `ItemKey`: each `Element` is a `Record` that has exactly one `ItemKey`. Every `Element`
+///   within a chunk must have an `ItemKey` that is unique to that chunk.
 #[derive(Clone)]
 pub struct Storage<ChunkKey, ItemKey, Element> {
     id: u64,
@@ -31,6 +39,8 @@ where
     Element: Record<ChunkKey, ItemKey>,
 {
     /// Construct a new Storage.
+    ///
+    /// # Example
     ///
     /// ```
     /// use retriever::prelude::*;
@@ -91,6 +101,8 @@ where
     }
 
     /// Add the given element to this Storage.
+    ///
+    /// # Example
     ///
     /// ```
     /// use retriever::prelude::*;
@@ -154,6 +166,42 @@ where
         self
     }
 
+    /// Add some elements that are all part of the same chunk.
+    pub fn add_chunk<I, K>(&mut self, i: I) -> &mut Self
+    where
+        I: IntoIterator<Item = K>,
+        Element: Borrow<K>,
+        K: ToOwned<Owned = Element> + Record<ChunkKey, ItemKey>,
+    {
+        self.clean();
+
+        let mut i = i.into_iter().peekable();
+
+        if let Some(chunk_key_cow) = i.peek().map(|x| x.chunk_key()) {
+            self.chunk(chunk_key_cow.borrow(), false).extend(i);
+        }
+
+        self
+    }
+
+    /// Add some chunks. Each item of the parameter must be a collection of elements in a single chunk.
+    /// The same chunk may not be listed twice.
+    pub fn add_chunks<I, II, K>(&mut self, ii: II) -> &mut Self
+    where
+        II: IntoIterator<Item = I>,
+        I: IntoIterator<Item = K>,
+        Element: Borrow<K>,
+        K: ToOwned<Owned = Element> + Record<ChunkKey, ItemKey>,
+    {
+        self.clean();
+
+        for i in ii {
+            self.add_chunk(i);
+        }
+
+        self
+    }
+
     fn clean(&mut self) {
         if self.dirty.is_empty() {
             return;
@@ -184,39 +232,40 @@ where
     }
 
     /// Raw serial access to all element data by reference.
-    /// (Tip! You can use Serde to serialize a list of element references and later deserialize them as values.)
+    /// (Tip! You can use Serde to serialize this list of element references and later deserialize
+    /// them as owned values.)
+    ///
+    /// In many cases, you may prefer to use `Storage::iter()` to simply iterate every element.
+    ///
+    /// You can also use `Storage::dissolve()`, but this consumes the `Storage`.
+    ///
+    /// # Example
     ///
     /// ```
     /// use retriever::prelude::*;
     ///
     /// // Load some data into storage.
-    /// let mut storage : Storage<(), usize, (usize, &'static str)> = Storage::new();
+    /// let mut storage : Storage<(), usize, (usize, String)> = Storage::new();
     ///
-    /// storage.add((0, "hello"));
-    /// storage.add((1, "doctor"));
-    /// storage.add((2, "name"));
-    /// storage.add((3, "continue"));
-    /// storage.add((4, "yesterday"));
-    /// storage.add((5, "tomorrow"));
+    /// storage.add((0, String::from("hello")));
+    /// storage.add((1, String::from("doctor")));
+    /// storage.add((2, String::from("name")));
+    /// storage.add((3, String::from("continue")));
+    /// storage.add((4, String::from("yesterday")));
+    /// storage.add((5, String::from("tomorrow")));
     ///
-    /// // Now create a second storage mirroring the data of the first by-reference.
-    /// // References to Records are also Records with the same key types.
-    /// let mut mirror : Storage<(), usize, &(usize, &'static str)> = Storage::new();
+    /// let for_serialization : Vec<&[(usize, String)]> = storage.raw().collect();
     ///
-    /// for chunk in storage.raw().into_iter() {
-    ///   for item_reference in chunk {
-    ///     mirror.add(item_reference);
-    ///   }
-    /// }
+    /// let serialized = serde_json::to_string(&for_serialization).unwrap();
+    /// let deserialized : Vec<Vec<(usize, String)>> = serde_json::from_str(&serialized).unwrap();
     ///
-    /// // Notice the double reference, because we are getting a reference to an element in 'mirror'
-    /// // that is itself a reference to an owned element in 'storage'.
-    /// let yesterday = mirror.get(&ID.item(4));
-    /// assert_eq!(yesterday, Some(&&(4, "yesterday")));
+    /// let mut duplicate_storage : Storage<(), usize, (usize, String)> = Storage::new();
+    /// duplicate_storage.add_chunks(deserialized);
     ///
     /// # storage.validate();
+    /// # duplicate_storage.validate();
     /// ```
-    pub fn raw(&self) -> impl IntoIterator<Item = &[Element]> {
+    pub fn raw(&self) -> impl Iterator<Item = &[Element]> {
         self.chunks.iter().map(|chunk| chunk.raw())
     }
 
@@ -225,6 +274,8 @@ where
     /// that supports the same key types.
     ///
     /// Returns None if the data element does not exist.
+    ///
+    /// # Example
     ///
     /// ```
     /// use retriever::prelude::*;
@@ -346,30 +397,38 @@ where
             .and_then(|idx| self.chunks[idx].get(unique_id))
     }
 
-    /// Get an Entry for a data element, which supports mutation.
+    /// Get an `Entry` for a data element.
     ///
-    /// The Entry API is very similar, but not identical to, the Entry APIs supported by rust's
-    /// standard collections framework.
+    /// This Entry API is very similar to the Entry APIs provided by rust's
+    /// standard collections API.
     ///
-    /// Since re-indexing is a potentially expensive operation, it's best to examine an immutable
-    /// reference to a data element to make sure you really want to mutate it before obtaining a
-    /// mutable reference.
+    /// # Type Parameters:
+    ///
+    /// `R`: Any `Record` with the same chunk key and item key as the record you want to
+    /// access. If there's no obvious choice of `Record`, consider using `retriever::types::id::Id`
+    /// to construct an appropriate key.
+    ///
+    /// # Example
     ///
     /// ```
     /// use retriever::prelude::*;
     ///
+    /// // Note that (A,B) implements Record<(),A,B>.
     /// let mut storage : Storage<(),usize,(usize,f64)> = Storage::new();
     ///
-    /// storage.entry(&(0,())).or_insert_with(|| (0,4.0));
-    /// assert_eq!(storage.get(&ID.item(0)), Some(&(0,4.0)));
+    /// storage.entry(&ID.item(0)).or_insert_with(|| (0,4.0));
+    /// assert_eq!(Some(&(0,4.0)), storage.get(&ID.item(0)));
     ///
-    /// storage.entry(&(0,())).or_insert_with(|| (0,9.0)).and_modify(|(_,x)| {
-    ///   *x = x.sqrt();
+    /// storage.entry(&ID.item(0)).or_insert_with(|| (0,9.0));
+    /// assert_eq!(Some(&(0,4.0)), storage.get(&ID.item(0)));
+    ///
+    /// storage.entry(&ID.item(0)).and_modify(|x| {
+    ///   x.1 = x.1.sqrt();
     /// });
-    /// assert_eq!(storage.get(&ID.item(0)), Some(&(0,2.0)));
+    /// assert_eq!(Some(&(0,2.0)), storage.get(&ID.item(0)));
     ///
-    /// storage.entry(&(0,())).remove();
-    /// assert_eq!(storage.get(&ID.item(0)), None);
+    /// storage.entry(&ID.item(0)).remove();
+    /// assert_eq!(None, storage.get(&ID.item(0)));
     ///
     /// # storage.validate();
     /// ```
@@ -383,6 +442,8 @@ where
     }
 
     /// Iterate over every element in storage.
+    ///
+    /// # Example
     ///
     /// ```
     /// use retriever::prelude::*;
@@ -406,7 +467,16 @@ where
     }
 
     /// Iterate over elements according to some Query. A variety of builtin queries are provided.
-    /// The simplest useful query is Everything, which iterates over every element in storage.
+    ///
+    /// # Type Parameters
+    ///
+    /// `Q`: Any `Query`. There are a variety of useful `Queries`:
+    /// * `Everything`
+    /// * `Chunks(...)`, an explicit list of chunks
+    /// * `Id`, the Id of a specific element
+    /// * Most other `Queries` can be constructed by chaining the methods of the `Query` trait.
+    ///
+    /// # Example
     ///
     /// ```
     /// use retriever::prelude::*;
@@ -465,6 +535,14 @@ where
     /// reference to a data element to make sure you really want to mutate it before obtaining a
     /// mutable reference.
     ///
+    /// # Type Parameters
+    ///
+    /// `Q`: Any `Query`. There are a variety of useful `Queries`:
+    /// * `Everything`
+    /// * `Chunks(...)`, an explicit list of chunks
+    /// * `Id`, the Id of a specific element
+    /// * Most other `Queries` can be constructed by chaining the methods of the `Query` trait.
+    ///
     /// ```
     /// use retriever::prelude::*;
     /// use std::borrow::Cow;
@@ -516,6 +594,14 @@ where
     }
 
     /// Remove all of the specified elements from this storage.
+    ///
+    /// # Type Parameters
+    ///
+    /// `Q`: Any `Query`. There are a variety of useful `Queries`:
+    /// * `Everything`
+    /// * `Chunks(...)`, an explicit list of chunks
+    /// * `Id`, the Id of a specific element
+    /// * Most other `Queries` can be constructed by chaining the methods of the `Query` trait.
     ///
     /// ```
     /// use retriever::prelude::*;

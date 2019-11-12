@@ -6,10 +6,6 @@ It stores ordinary rust data types in a similar manner as a NoSQL database.
 Retriever is ideal when you need to index a collection by multiple properties,
 you need a variety of relations between elements in a collection, or
 or you need to maintain summary statistics about a collection.
-Retriever can make your application data more easily discoverable, searchable, and auditable
-compared to a "big jumble of plain old rust types."
-Retriever can help reduce data redundancy and establish a single source of truth
-for all values.
 
 ![](./Callie_the_golden_retriever_puppy.jpg)
 
@@ -260,3 +256,5 @@ then you should an ECS like [specs](https://crates.io/crates/specs).
    on partial chunks (nor have I imagined a motivation for doing this).
  * If chunks are small enough, then the entire chunk and it's index might fit into cache.
 
+
+License: ISC

@@ -15,8 +15,9 @@ use std::borrow::Cow;
 /// ```
 pub const ID: Id<(), ()> = Id((), ());
 
-/// A unique `Id` for a data element in `Storage`. An `Id` can be used as the basis for both the
-/// `get` or `entry` APIs that match a `Record` or the `query`/`modify`/`remove` APIs that accept a `Query`.
+/// A unique `Id` for a data element in `Storage`. An `Id` can be used as the basis for almost
+/// any operation, uncluding `Storage::get(...)`, `Storage::entry(...)`, `Storage::query(...)`,
+/// `Storage::modify(...)` and `Storage::remove(...)`.
 ///
 /// ```
 /// use retriever::prelude::*;
@@ -28,14 +29,14 @@ pub const ID: Id<(), ()> = Id((), ());
 /// let old_password = String::from("PASSWORD!5");
 /// let admin = String::from("true");
 ///
-/// storage.add((7,"username",username.clone()));
-/// storage.add((7,"password",old_password.clone()));
-/// storage.add((7,"admin",admin.clone()));
+/// storage.add((user_id,"username",username.clone()));
+/// storage.add((user_id,"password",old_password.clone()));
+/// storage.add((user_id,"admin",admin.clone()));
 ///
-/// let jroberts = ID.chunk(7);
+/// let jroberts = ID.chunk(user_id);
 ///
 /// assert_eq!(
-///   &(7,"username",username.clone()),
+///   &(user_id,"username",username.clone()),
 ///   storage.get(&jroberts.item("username")).unwrap()
 /// );
 ///
@@ -45,7 +46,7 @@ pub const ID: Id<(), ()> = Id((), ());
 ///   editor.get_mut().2 = String::from(new_password.clone());
 /// });
 /// assert_eq!(
-///   &(7,"password",new_password.clone()),
+///   &(user_id,"password",new_password.clone()),
 ///   storage.get(&jroberts.item("password")).unwrap()
 /// );
 /// ```
@@ -63,7 +64,8 @@ where
         Id(chunk_key, item_key)
     }
 
-    /// Set the chunk key of an `Id` to a new value. This can be chained to construct `Id`s in fluent style.
+    /// Set the chunk key of an `Id` to a new value.
+    #[must_use = "This method returns a new Id with the given chunk key."]
     pub fn chunk<NewChunkKey>(self, new_chunk_key: NewChunkKey) -> Id<NewChunkKey, ItemKey>
     where
         NewChunkKey: ValidKey,
@@ -71,7 +73,8 @@ where
         Id::new(new_chunk_key, self.1)
     }
 
-    /// Set the item key of an `Id` to a new value. This can be chained to construct `Id`s in fluent style.
+    /// Set the item key of an `Id` to a new value.
+    #[must_use = "This method returns a new Id with the given item key."]
     pub fn item<NewItemKey>(self, new_item_key: NewItemKey) -> Id<ChunkKey, NewItemKey>
     where
         NewItemKey: ValidKey,
@@ -81,6 +84,7 @@ where
 
     /// Construct the `Id` that matches an existing `Record`. `Id<Cow<Key>>` is usually just as good as
     /// an `Id<Key>` of the owned `Key` itself.  See `cloned` for a way to construct a fully-owned `Id`.
+    #[must_use = "This method returns a new Id and otherwise has no effect."]
     pub fn of<'a, R>(record: &'a R) -> Id<Cow<'a, ChunkKey>, Cow<'a, ItemKey>>
     where
         R: Record<ChunkKey, ItemKey>,
@@ -90,6 +94,7 @@ where
 
     /// Construct a fully-owned `Id` that matches an existing `Record`.
     /// This works from any valid `Record`, including an `Id` of `Cow<Key>` or `&Key`.
+    #[must_use = "This method returns a new Id and otherwise has no effect."]
     pub fn cloned<R>(record: &R) -> Self
     where
         R: Record<ChunkKey, ItemKey>,

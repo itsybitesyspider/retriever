@@ -11,7 +11,8 @@ use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::hash::Hash;
 
-/// A chunk of storage containing all elements with a common primary key
+/// A chunk of storage containing all elements with a common primary key.
+/// Users should rarely if ever interact with this type.
 #[derive(Clone)]
 pub struct ChunkStorage<ChunkKey, ItemKey, Element> {
     chunk_key: ChunkKey,
@@ -61,6 +62,18 @@ where
         let idx = self.data.len();
         self.data.push(element);
         idx
+    }
+
+    pub(crate) fn extend<I, K>(&mut self, i: I)
+    where
+        I: Iterator<Item = K>,
+        Element: Borrow<K>,
+        K: ToOwned<Owned = Element> + Record<ChunkKey, ItemKey>,
+    {
+        // TODO: write an efficient version of this
+        for e in i {
+            self.add(e.to_owned());
+        }
     }
 
     pub(crate) fn get_idx(&self, idx: usize) -> &Element {

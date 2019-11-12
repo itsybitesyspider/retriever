@@ -30,23 +30,24 @@ where
     index_key: Cow<'a, B>,
 }
 
-impl<'a, Q, B, ChunkKey, Element, IndexKeys, IndexKey> Clone for MatchingSecondaryIndex<'a, Q, B, ChunkKey, Element, IndexKeys, IndexKey>
+impl<'a, Q, B, ChunkKey, Element, IndexKeys, IndexKey> Clone
+    for MatchingSecondaryIndex<'a, Q, B, ChunkKey, Element, IndexKeys, IndexKey>
 where
-  B: ToOwned + Hash + Eq + ?Sized + 'a,
-  &'a B: ValidKey,
-  IndexKey: ValidKey + Borrow<B>,
-  IndexKeys: Clone + Debug + Default + Eq,
-  for<'y> &'y IndexKeys: IntoIterator<Item = &'y IndexKey>,
-  Q: Clone,
-  Cow<'a,B>: Clone,
+    B: ToOwned + Hash + Eq + ?Sized + 'a,
+    &'a B: ValidKey,
+    IndexKey: ValidKey + Borrow<B>,
+    IndexKeys: Clone + Debug + Default + Eq,
+    for<'y> &'y IndexKeys: IntoIterator<Item = &'y IndexKey>,
+    Q: Clone,
+    Cow<'a, B>: Clone,
 {
-  fn clone(&self) -> Self {
-    MatchingSecondaryIndex {
-      query: self.query.clone(),
-      secondary_index: self.secondary_index.clone(),
-      index_key: self.index_key.clone(),
+    fn clone(&self) -> Self {
+        MatchingSecondaryIndex {
+            query: self.query.clone(),
+            secondary_index: self.secondary_index.clone(),
+            index_key: self.index_key.clone(),
+        }
     }
-  }
 }
 
 struct ChunkSecondaryIndex<IndexKey>
@@ -75,6 +76,13 @@ where
 /// A `SecondaryIndex` is associated with exactly one storage.
 /// If you attempt to use a `SecondaryIndex` with a `Storage` other than the one it was
 /// initialized with, it will panic.
+///
+/// # Type Parameters
+///
+/// `ChunkKey`: The chunk key type of the `Storage`.
+/// `Element`: The element type of the `Storage`.
+/// `IndexKeys`: A collection containing the type parameter `IndexKey`. This could be an `Option`, `Vec`, `HashSet`, etc.
+/// `IndexKey`: The type of the secondary index key. This is the key you'll use to look up `Elements` via this `SecondaryIndex`.
 pub struct SecondaryIndex<ChunkKey, Element, IndexKeys, IndexKey>(
     Arc<RwLock<SecondaryIndexImpl<ChunkKey, Element, IndexKeys, IndexKey>>>,
 )
@@ -130,11 +138,10 @@ where
     ///
     /// Try to re-use `SecondaryIndices` as much as possible. If you drop a `SecondaryIndex` and then
     /// re-create it, the index has to be rebuilt, which might take a long time.
-    pub fn new<C, I, E, F>(storage: &Storage<C, I, E>, f: F) -> Self
+    pub fn new<I, F>(storage: &Storage<ChunkKey, I, Element>, f: F) -> Self
     where
-        C: ValidKey,
         I: ValidKey,
-        E: Record<C, I>,
+        Element: Record<ChunkKey, I>,
         F: Fn(&Element) -> Cow<IndexKeys> + 'static,
     {
         SecondaryIndex(Arc::new(RwLock::new(SecondaryIndexImpl {
