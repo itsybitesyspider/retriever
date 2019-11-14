@@ -90,17 +90,14 @@ where
 
     pub(crate) fn entry<'a, R>(
         &'a mut self,
-        unique_id: &'a R,
-    ) -> Entry<'a, ChunkKey, ItemKey, Element>
+        unique_id: R,
+    ) -> Entry<'a, R, ChunkKey, ItemKey, Element>
     where
         R: Record<ChunkKey, ItemKey> + 'a,
     {
+        let idx = self.index.get(unique_id.item_key().borrow()).cloned();
         assert_eq!(&self.chunk_key, unique_id.chunk_key().as_ref());
-        Entry::new(
-            Id::new(unique_id.chunk_key(), unique_id.item_key()),
-            self.index.get(unique_id.item_key().borrow()).cloned(),
-            self,
-        )
+        Entry::new(unique_id, idx, self)
     }
 
     pub(crate) fn get_idx_mut(&mut self, idx: usize) -> &mut Element {

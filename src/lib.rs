@@ -15,43 +15,42 @@
 //!
 //! * Document-oriented storage and retrieval.
 //! * Index by unlimited secondary keys.
-//! * Create indexes at will and drop them when no longer need them.
+//! * Create indexes at will and drop them when you no longer need them.
 //! * Lazy indexing. Pay re-indexing costs when you query the index, not before.
 //! * Choice of borrowed or computed (dynamic) keys (using [Cow](https://doc.rust-lang.org/std/borrow/enum.Cow.html)).
 //! * Map-reduce-style operations, if you want them.
 //! * Chunking: all records belonging to the same chunk are stored together in the same Vec.
-//! * 100% safe Rust with no default dependencies, not that I'm religious about it.
+//! * 100% safe Rust with no default dependencies.
 //! * Over 60 tests, doc-tests and benchmarks (need more)
 //! * Lots of full-featured examples to get started!
 //!
+//! ## (Cargo) Features:
+//!
+//! * `fnv`: Index using the [fnv](https://crates.io/crates/fnv) hasher, which is faster but has
+//!   security caveats.
+//! * `log`: [Log](https://crates.io/crates/log) non-critical problems and performance caveats.
+//! * `smallvec`: Support [small vectors](https://crates.io/crates/smallvec) in certain positions
+//!   and also use small vector optimizations internally.
+//!
 //! ## Retriever does not have:
 //!
-//! * Parallelism. See "To Do" section.
+//! * Parallelism. This is a "to-do".
 //! * Persistence. You can access the raw data for any chunk
-//!   and pass it to serde for serialization.
-//! * Networking. Retriever is embedded in your application like any other crate.
+//!   and pass it to serde for serialization. See `Storage::raw()` for an example.
+//! * Networking. Retriever is embedded in your application like any other crate. It doesn't
+//!   access anything over the network, nor can be accessed over a network.
 //!
-//! ## To Do: (I want these features, but they aren't yet implemented)
-//! * Parallelism (will probably be implemented behind a rayon feature flag)
-//! * Sorted indexes / range queries
-//! * Boolean queries (union, intersection, difference, etc -- note: you can perform intersection
-//!   queries now just by chaining query operators)
-//! * External mutable iterators (currently only internal iteration is supported for modify)
-//! * More small vector optimization in some places where I expect it to matter
-//! * Need rigorous testing for space leaks (currently no effort is made to shrink storage
-//!   OR index vectors, this is priority #1 right now)
-//! * Theoretically, I expect retriever's performance to break down beyond about
-//!   16 million chunks of 16 million elements, and secondary indexes are simply not scalable
-//!   for low-cardinality data. I would eventually like retriever to
-//!   scale up to "every electron in the universe" if someone somehow ever legally acquires
-//!   that tier of hardware.
+//! ## Cow
+//!
+//! Retriever makes heavy use of [Cow](https://doc.rust-lang.org/std/borrow/enum.Cow.html)
+//! to represent various kinds of index keys. Using `Cow` allows retriever to bridge a wide
+//! range of use cases. A `Cow<T>` is either `Cow::Owned(T)` or `Cow::Borrowed(&T)`.
 //!
 //! ## Getting started:
 //!
 //! ```
 //! use retriever::prelude::*;
-//! use std::borrow::Cow;    // Cow is wonderful and simple to use but not widely known.
-//!                          // It's just an enum with Cow::Owned(T) or Cow::Borrowed(&T).
+//! use std::borrow::Cow;
 //! use chrono::prelude::*;  // Using rust's Chrono crate to handle date/time
 //!                          // (just for this example, you don't need it)
 //! use std::collections::HashSet;
@@ -109,23 +108,23 @@
 //! // Let's create a storage of puppies.
 //! let mut storage : Storage<i32,String,Puppy> = Storage::new();
 //!
-//! // Add some example puppies to work with
-//! storage.add(
-//!   Puppy::new("Spot", Utc.ymd(2019, 1, 9))
-//!     .breeds(&["labrador","dalmation"])
-//!     .parent(2010, "Yeller")
-//! );
-//!
 //! storage.add(
 //!   Puppy::new("Lucky", Utc.ymd(2019, 3, 27))
 //!     .adopted(Utc.ymd(2019, 9, 13))
-//!     .breeds(&["dachshund","poodle"])
+//!     .breeds(&["beagle"])
+//! );
+//!
+//! // Add some example puppies to work with
+//! storage.add(
+//!   Puppy::new("Spot", Utc.ymd(2019, 1, 9))
+//!     .breeds(&["dalmation"])
+//!     .parent(2010, "Yeller")
 //! );
 //!
 //! storage.add(
 //!   Puppy::new("JoJo", Utc.ymd(2018, 9, 2))
 //!     .adopted(Utc.ymd(2019, 5, 1))
-//!     .breeds(&["labrador","yorkie"])
+//!     .breeds(&["labrador","shepherd"])
 //!     .parent(2010, "Yeller")
 //! );
 //!
@@ -150,7 +149,6 @@
 //! assert_eq!(vec!["JoJo","Lucky","Spot"], rescued_recently);
 //!
 //! // Get all puppies rescued in march:
-//! // This is an inefficient query, because the 'filter' operation tests every record.
 //! let q = Everything.filter(|puppy: &Puppy| puppy.rescued_date.month() == 3);
 //! let mut rescued_in_march : Vec<_> = storage.query(&q)
 //!   .map(|puppy| &puppy.name).collect();
@@ -158,12 +156,14 @@
 //! assert_eq!(vec!["Lucky"], rescued_in_march);
 //!
 //! // Fix spelling of "dalmatian" on all puppies:
-//! storage.modify(&Everything, |mut editor| {
-//!   if editor.get().breed.contains("dalmation") {
-//!     editor.get_mut().breed.remove("dalmation");
-//!     editor.get_mut().breed.insert(String::from("dalmatian"));
-//!   }
+//! let q = Everything.filter(|puppy : &Puppy| puppy.breed.contains("dalmation"));
+//! storage.modify(&q, |mut editor| {
+//!   let puppy = editor.get_mut();
+//!   puppy.breed.remove("dalmation");
+//!   puppy.breed.insert(String::from("dalmatian"));
 //! });
+//! assert_eq!(0, storage.iter().filter(|x| x.breed.contains("dalmation")).count());
+//! assert_eq!(1, storage.iter().filter(|x| x.breed.contains("dalmatian")).count());
 //!
 //! // Set up an index of puppies by their parent.
 //! // In SecondaryIndexes, we always return a collection of secondary keys.
@@ -206,7 +206,7 @@
 //! My sense is that ECSs exist to exploit performance opportunities from low-cardinality data
 //! (i.e. there are thousands of instances of 13 types of monster in a dungeon and even those
 //! 13 types share many overlapping qualities). If you need to use [Data Oriented Design](http://www.dataorienteddesign.com/dodmain.pdf)
-//! then you should an ECS like [specs](https://crates.io/crates/specs).
+//! then you might consider an ECS like [specs](https://crates.io/crates/specs) or [legion](https://crates.io/crates/legion).
 //!
 //! ## Getting started:
 //!
@@ -214,9 +214,6 @@
 //! 2. Choose a *chunk key* and *item key* for each instance of your record.
 //!   * Many records can share the same chunk key.
 //!   * No two records in the same chunk may have the same item key.
-//!   * A record is uniquely identified by it's (ChunkKey,ItemKey) pair.
-//!   * Retriever uses Cow to get the chunk key and item key for each record, so a key can be
-//!     borrowed from the record *or* a key can be dynamically computed.
 //!   * All keys must be `Clone + Debug + Eq + Hash + Ord`. See `ValidKey`.
 //!   * If you don't want to use chunking or aren't sure what to types of chunk key to choose,
 //!     use () as the chunk key. Chunking is a feature that exists to help you --
@@ -224,22 +221,18 @@
 //! 3. Implement the Record<ChunkKey,ItemKey> trait for your choice of record, chunk key, and item
 //!    key types.
 //! 4. Create a new empty Storage object using `Storage::new()`.
-//! 5. If you want, create some secondary indexes using `SecondaryIndex::new()`. Define
+//! 5. Use `Storage::add()`, `Storage::iter()`, `Storage::query()`, `Storage::modify()`, and
+//!    `Storage::remove()` to implement CRUD operations on your storage.
+//! 6. If you want, create some secondary indexes using `SecondaryIndex::new()`. Define
 //!    secondary indexes by writing a single closure that maps records into zero or more secondary
 //!    keys.
-//! 6. Create some reductions using `Reduction::new()`. Define reductions by writing two
-//!    closures: (1) A map from the record type to a summary type, and (2) a reduction (or fold) of
-//!    several summary objects into a single summary. The `Reduction` performs these reduction
-//!    steps recursively until only single summary remains for the entire data store, and caches
-//!    all intermediate steps so that recalculating after a change is fast.
-//! 7. Keep the `Storage`, `SecondaryIndices`, and `Reductions` together for later use.
-//!    Avoid dropping `SecondaryIndices` or `Reductions`, because they are expensive to re-compute.
-//! 8. Use `Storage::add()`, `Storage::iter()`, `Storage::query()`, `Storage::modify()`, and
-//!    `Storage::remove()` to implement CRUD operations on your storage.
-//! 9. Use `Reduction::reduce()` to reduce your entire storage to a single summary object, or
+//! 7. If you want, create some reductions using `Reduction::new()`. Define reductions by writing
+//!    two closures: (1) A map from the record type to a summary type, and (2) a reduction
+//!    (or fold) of several summary objects into a single summary.
+//! 8. Use `Reduction::reduce()` to reduce your entire storage to a single summary object, or
 //!    `Reduction::reduce_chunk()` to reduce a single chunk to a single summary object.
 //!
-//! ### More about how to choose a good chunk key
+//! ### More about how to choose a good chunk key:
 //!
 //!  * A good chunk key will keep related records together; queries should usually just operate
 //!    on a handful of chunks at a time.
@@ -247,17 +240,36 @@
 //!    to find a record.
 //!  * A good chunk key might correspond to persistant storage, such as a single file in the file
 //!    file system. It's easy to load and unload chunks as a block.
-//!  * For stores that represent geographical or spatial information information, a good chunk key
+//!  * For stores that represent geographical or spatial information, a good chunk key
 //!    might represent grid square or some other subdivision strategy.
 //!  * For a time-series database, a good chunk key might represent a time interval.
 //!  * In a GUI framework, each window might have its own chunk, and each widget might be a record
 //!    in that chunk.
 //!  * If you want to perform reductions on only part of your storage, then that part must be defined
 //!    as a single chunk. In the future, I want to implement convolutional reductions that map onto
-//!    multiple chunks, but I haven't yet imagined a reduction scheme that would somehow operate
-//!    on partial chunks (nor have I imagined a motivation for doing this).
+//!    zero or more chunks.
 //!  * If chunks are small enough, then the entire chunk and it's index might fit into cache.
 //!
+//! ## License
+//!
+//! ## To Do: (I want these features, but they aren't yet implemented)
+//! * Parallelism (will probably be implemented behind a rayon feature flag)
+//! * Sorted indexes / range queries
+//! * Boolean queries (union, intersection, difference, etc -- note: you can perform intersection
+//!   queries now just by chaining query operators)
+//! * External mutable iterators (currently only internal iteration is supported for modify)
+//! * More small vector optimization in some places where I expect it to matter
+//! * Need rigorous testing for space usage (currently no effort is made to shrink storage
+//!   OR index vectors, this is priority #1 right now)
+//! * Lazy item key indexing is a potential performance win.
+//! * Convolution reductions mapping zero or more source chunks onto one destination chunk.
+//! * Idea: data elements could be stored in a [persistant data structure](https://en.wikipedia.org/wiki/Persistent_data_structure)
+//!   which might make it possible to iterate over elements while seperately mutating them. This idea needs research.
+//! * Theoretically, I expect retriever's performance to break down beyond about
+//!   16 million chunks of 16 million elements, and secondary indexes are simply not scalable
+//!   for low-cardinality data. I would eventually like retriever to
+//!   scale up to "every electron in the universe" if someone somehow ever legally acquires
+//!   that tier of hardware.
 
 /// Module that implements a sparse, compact `Bitset` implementation.
 pub mod bits;

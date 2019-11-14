@@ -1,40 +1,48 @@
 use super::chunk_storage::ChunkStorage;
-use super::id::Id;
 use crate::traits::record::Record;
 use crate::traits::valid_key::ValidKey;
 use std::borrow::Cow;
+use std::fmt::Debug;
 
 /// A Entry for an element. This is intended to work in the same way as the `Entries` from
 /// rust's standard collections API. An `Entry` refers to an element that we have tried to
 /// look up and might or might not have found.
-pub struct Entry<'a, ChunkKey, ItemKey, Element>
+///
+/// # Type Parameters
+///
+/// * `R`: The key used to lookup this `Entry`
+/// * `ChunkKey`: The chunk key type of the backing `Storage`
+/// * `ItemKey`: The item key type of the backing `Storage`
+/// * `Element`: The element type of the backing `Storage`, and also the `Element` represented
+///   by this `Entry`.
+pub struct Entry<'a, R, ChunkKey, ItemKey, Element>
 where
+    R: Record<ChunkKey, ItemKey> + 'a,
     ChunkKey: Clone,
     ItemKey: Clone,
 {
-    id: Id<Cow<'a, ChunkKey>, Cow<'a, ItemKey>>,
+    id: R,
     idx: Option<usize>,
     storage: &'a mut ChunkStorage<ChunkKey, ItemKey, Element>,
 }
 
-impl<'a, ChunkKey, ItemKey, Element> Entry<'a, ChunkKey, ItemKey, Element>
+impl<'a, R, ChunkKey, ItemKey, Element> Entry<'a, R, ChunkKey, ItemKey, Element>
 where
+    R: Record<ChunkKey, ItemKey> + 'a,
     ChunkKey: ValidKey,
     ItemKey: ValidKey,
     Element: Record<ChunkKey, ItemKey>,
 {
     pub(super) fn new(
-        id: Id<Cow<'a, ChunkKey>, Cow<'a, ItemKey>>,
+        id: R,
         idx: Option<usize>,
         storage: &'a mut ChunkStorage<ChunkKey, ItemKey, Element>,
     ) -> Self {
         Entry { id, idx, storage }
     }
 
-    /// Returns this element's unique `Id`. The `Id` is the `Id` that was used in the original
-    /// call to lookup an entry. The existance of the `Id` does not mean that the element actually
-    /// exists in `Storage`.
-    pub fn id(&self) -> &Id<Cow<'a, ChunkKey>, Cow<'a, ItemKey>> {
+    /// Returns the value whose `ChunkKey` and `ItemKey` is used to look up this `Entry`.
+    pub fn id(&self) -> &R {
         &self.id
     }
 
@@ -79,11 +87,14 @@ where
     }
 
     /// Panic if this element doesn't exist in `Storage`.
-    pub fn or_panic(self) -> Self {
+    pub fn or_panic(self) -> Self
+    where
+        R: Debug,
+    {
         self.get().or_else(|| {
             panic!(format!(
                 "retriever: Entry::or_panic(): {:?} doesn't exist",
-                self.id
+                &self.id
             ))
         });
 

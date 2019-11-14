@@ -24,6 +24,7 @@ static ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 ///   sure what `ChunkKey` to use, choose `()`.
 /// * `ItemKey`: each `Element` is a `Record` that has exactly one `ItemKey`. Every `Element`
 ///   within a chunk must have an `ItemKey` that is unique to that chunk.
+/// * `Element`: the type contained in this `Storage`.
 #[derive(Clone)]
 pub struct Storage<ChunkKey, ItemKey, Element> {
     id: u64,
@@ -45,7 +46,8 @@ where
     /// ```
     /// use retriever::prelude::*;
     ///
-    /// let mut storage : Storage<u64, &'static str, _> = Storage::new();
+    /// // Note that (A,B,C) implements Record<A,B>.
+    /// let mut storage : Storage<u64, &'static str, (u64,&'static str, String)> = Storage::new();
     ///
     /// // In a later example, we'll encourage jroberts to use a stronger password.
     /// let user_id = 7;
@@ -167,6 +169,11 @@ where
     }
 
     /// Add some elements that are all part of the same chunk.
+    ///
+    /// # Panic
+    ///
+    /// This method panics if any `Element` does not have the same chunk key as the others.
+    ///
     pub fn add_chunk<I, K>(&mut self, i: I) -> &mut Self
     where
         I: IntoIterator<Item = K>,
@@ -184,8 +191,19 @@ where
         self
     }
 
-    /// Add some chunks. Each item of the parameter must be a collection of elements in a single chunk.
-    /// The same chunk may not be listed twice.
+    /// Add many many elements, grouped into chunks.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `II`: An iterator over groups of elements, each group belonging to a single chunk.
+    /// * `I`: An iterator over some elements that all belong to the same chunk.
+    /// * 'K': An `Element` or reference to an `Element`.
+    ///
+    /// # Panic
+    ///
+    /// This method panics if any group of `Elements` do not share a common chunk key, or any
+    /// two groups of `Elements` do share a common chunk key.
+    ///
     pub fn add_chunks<I, II, K>(&mut self, ii: II) -> &mut Self
     where
         II: IntoIterator<Item = I>,
@@ -255,25 +273,36 @@ where
     /// storage.add((5, String::from("tomorrow")));
     ///
     /// let for_serialization : Vec<&[(usize, String)]> = storage.raw().collect();
-    ///
     /// let serialized = serde_json::to_string(&for_serialization).unwrap();
-    /// let deserialized : Vec<Vec<(usize, String)>> = serde_json::from_str(&serialized).unwrap();
     ///
-    /// let mut duplicate_storage : Storage<(), usize, (usize, String)> = Storage::new();
-    /// duplicate_storage.add_chunks(deserialized);
+    /// let deserialized : Vec<Vec<(usize, String)>> = serde_json::from_str(&serialized).unwrap();
+    /// let mut duplicated_storage : Storage<(), usize, (usize, String)> = Storage::new();
+    /// duplicated_storage.add_chunks(deserialized);
+    ///
+    /// assert_eq!(Some(&(0,String::from("hello"))), duplicated_storage.get(&ID.item(0)));
+    /// assert_eq!(Some(&(1,String::from("doctor"))), duplicated_storage.get(&ID.item(1)));
+    /// assert_eq!(Some(&(2,String::from("name"))), duplicated_storage.get(&ID.item(2)));
+    /// assert_eq!(Some(&(3,String::from("continue"))), duplicated_storage.get(&ID.item(3)));
+    /// assert_eq!(Some(&(4,String::from("yesterday"))), duplicated_storage.get(&ID.item(4)));
+    /// assert_eq!(Some(&(5,String::from("tomorrow"))), duplicated_storage.get(&ID.item(5)));
     ///
     /// # storage.validate();
-    /// # duplicate_storage.validate();
+    /// # duplicated_storage.validate();
     /// ```
     pub fn raw(&self) -> impl Iterator<Item = &[Element]> {
         self.chunks.iter().map(|chunk| chunk.raw())
     }
 
-    /// Get a data element. A data element is uniquely identified by the combination of it's
-    /// chunk key and item key. Accordingly, you can look up any Record using another Record
-    /// that supports the same key types.
+    /// Get an `Element`, if it exists. An `Element` is a `Record` that is uniquely identified
+    /// by the combination of its `ChunkKey` and `ItemKey`.
     ///
     /// Returns None if the data element does not exist.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `R`: Any `Record` with the same `ChunkKey` and `ItemKey` as the record you want to
+    /// access. If there's no obvious choice for `R`, consider using `retriever::types::id::Id`
+    /// to construct an appropriate key.
     ///
     /// # Example
     ///
@@ -281,113 +310,47 @@ where
     /// use retriever::prelude::*;
     /// use std::borrow::Cow;
     ///
-    /// #[derive(Clone)]
-    /// struct RetailStore {
-    ///   region: String,
-    ///   number: usize,
+    /// struct Song {
+    ///   playlist_id: usize,
+    ///   song_id: usize,
+    ///   favorite: bool,
     /// }
     ///
-    /// struct Accounting {
-    ///   store: RetailStore,
-    ///   revenue: u64,
-    ///   expenses: u64,
-    ///   taxes: u64,
-    ///   fines: u64,
-    /// }
+    /// let mut storage : Storage<usize,usize,Song> = Storage::new();
     ///
-    /// struct Marketing {
-    ///   store: RetailStore,
-    ///   slogan: String,
-    /// }
-    ///
-    /// impl Record<String, usize> for RetailStore {
-    ///   fn chunk_key(&self) -> Cow<String> {
-    ///     Cow::Borrowed(&self.region)
+    /// impl Record<usize,usize> for Song {
+    ///   fn chunk_key(&self) -> Cow<usize> {
+    ///     Cow::Owned(self.playlist_id)
     ///   }
     ///
     ///   fn item_key(&self) -> Cow<usize> {
-    ///     Cow::Owned(self.number)
+    ///     Cow::Owned(self.song_id)
     ///   }
     /// }
     ///
-    /// impl Record<String, usize> for Accounting {
-    ///   fn chunk_key(&self) -> Cow<String> {
-    ///     self.store.chunk_key()
-    ///   }
-    ///
-    ///   fn item_key(&self) -> Cow<usize> {
-    ///     self.store.item_key()
-    ///   }
-    /// }
-    ///
-    /// impl Record<String, usize> for Marketing {
-    ///   fn chunk_key(&self) -> Cow<String> {
-    ///     self.store.chunk_key()
-    ///   }
-    ///
-    ///   fn item_key(&self) -> Cow<usize> {
-    ///     self.store.item_key()
-    ///   }
-    /// }
-    ///
-    /// let mut accounting : Storage<String, usize, Accounting> = Storage::new();
-    /// let mut marketing : Storage<String, usize, Marketing> = Storage::new();
-    ///
-    /// let store = RetailStore { region: String::from("North"), number: 7 };
-    ///
-    /// accounting.add(Accounting {
-    ///   store: store.clone(),
-    ///   revenue: 1300000,
-    ///   expenses: 1100000,
-    ///   taxes: 100,
-    ///   fines: 100000,
+    /// storage.add(Song {
+    ///   playlist_id: 1,
+    ///   song_id: 1,
+    ///   favorite: false,
     /// });
     ///
-    /// marketing.add(Marketing {
-    ///   store: store.clone(),
-    ///   slogan: String::from("You want to buy from us, today!"),
+    /// storage.add(Song {
+    ///   playlist_id: 1,
+    ///   song_id: 2,
+    ///   favorite: true,
     /// });
     ///
-    /// // Lookup using the fluent constructor syntax starting with the empty Id called ID.
-    /// assert_eq!(
-    ///   accounting.get(&ID.chunk(String::from("North")).item(7)).map(|x| x.revenue),
-    ///   Some(1300000),
-    /// );
+    /// storage.add(Song {
+    ///   playlist_id: 2,
+    ///   song_id: 1,
+    ///   favorite: false,
+    /// });
     ///
-    /// // Lookup using tuple record syntax. We can always look up any record
-    /// // using any other record with the same key types.
-    /// assert_eq!(
-    ///   accounting.get(&(String::from("North"),7,())).map(|x| x.revenue),
-    ///   Some(1300000),
-    /// );
+    /// assert_eq!(Some(false), storage.get(&ID.chunk(1).item(1)).map(|song| song.favorite));
+    /// assert_eq!(Some(true), storage.get(&ID.chunk(1).item(2)).map(|song| song.favorite));
+    /// assert_eq!(Some(false), storage.get(&ID.chunk(2).item(1)).map(|song| song.favorite));
     ///
-    /// // Lookup using RetailStore record.
-    /// assert_eq!(
-    ///   accounting.get(&store).map(|x| x.revenue),
-    ///   Some(1300000),
-    /// );
-    ///
-    /// // Lookup the slogans for all profitable stores. This performs a lookup of a marketing
-    /// // record using the corresponding accounting record as the key.
-    /// let mut count = 0;
-    /// for store in accounting.iter() {
-    ///   let profit = store.revenue - store.expenses - store.taxes - store.fines;
-    ///
-    ///   if let Some(slogan) = marketing.get(&store).map(|x| &x.slogan) {
-    ///     count += 1;
-    ///     println!("{}: Store {}-{} (profit: {}) has the slogan: {}",
-    ///       count,
-    ///       &store.store.region,
-    ///       store.store.number,
-    ///       profit,
-    ///       slogan);
-    ///   }
-    /// }
-    ///
-    /// assert_eq!(count, 1);
-    ///
-    /// # accounting.validate();
-    /// # marketing.validate();
+    /// # storage.validate();
     /// ```
     pub fn get<R>(&self, unique_id: &R) -> Option<&Element>
     where
@@ -397,42 +360,88 @@ where
             .and_then(|idx| self.chunks[idx].get(unique_id))
     }
 
-    /// Get an `Entry` for a data element.
+    /// Get an `Entry` for an `Element` that may or may not exist. An `Element` is a `Record`
+    /// that is uniquely identified by the combination of its `ChunkKey` and `ItemKey`.
     ///
     /// This Entry API is very similar to the Entry APIs provided by rust's
     /// standard collections API.
     ///
     /// # Type Parameters:
     ///
-    /// `R`: Any `Record` with the same chunk key and item key as the record you want to
-    /// access. If there's no obvious choice of `Record`, consider using `retriever::types::id::Id`
+    /// * `R`: Any `Record` with the same `ChunkKey` and `ItemKey` as the record you want to
+    /// access. If there's no obvious choice for `R`, consider using `retriever::types::id::Id`
     /// to construct an appropriate key.
     ///
     /// # Example
     ///
     /// ```
     /// use retriever::prelude::*;
+    /// use std::borrow::Cow;
     ///
-    /// // Note that (A,B) implements Record<(),A,B>.
-    /// let mut storage : Storage<(),usize,(usize,f64)> = Storage::new();
+    /// struct Song {
+    ///   playlist_id: usize,
+    ///   song_id: usize,
+    ///   favorite: bool,
+    /// }
     ///
-    /// storage.entry(&ID.item(0)).or_insert_with(|| (0,4.0));
-    /// assert_eq!(Some(&(0,4.0)), storage.get(&ID.item(0)));
+    /// let mut storage : Storage<usize,usize,Song> = Storage::new();
     ///
-    /// storage.entry(&ID.item(0)).or_insert_with(|| (0,9.0));
-    /// assert_eq!(Some(&(0,4.0)), storage.get(&ID.item(0)));
+    /// impl Record<usize,usize> for Song {
+    ///   fn chunk_key(&self) -> Cow<usize> {
+    ///     Cow::Owned(self.playlist_id)
+    ///   }
     ///
-    /// storage.entry(&ID.item(0)).and_modify(|x| {
-    ///   x.1 = x.1.sqrt();
+    ///   fn item_key(&self) -> Cow<usize> {
+    ///     Cow::Owned(self.song_id)
+    ///   }
+    /// }
+    ///
+    /// storage.add(Song {
+    ///   playlist_id: 1,
+    ///   song_id: 1,
+    ///   favorite: false,
     /// });
-    /// assert_eq!(Some(&(0,2.0)), storage.get(&ID.item(0)));
     ///
-    /// storage.entry(&ID.item(0)).remove();
-    /// assert_eq!(None, storage.get(&ID.item(0)));
+    /// storage.add(Song {
+    ///   playlist_id: 1,
+    ///   song_id: 2,
+    ///   favorite: true,
+    /// });
+    ///
+    /// storage.add(Song {
+    ///   playlist_id: 2,
+    ///   song_id: 1,
+    ///   favorite: false,
+    /// });
+    ///
+    /// // Entry::get() does the same thing as Storage::get()
+    /// assert_eq!(Some(false), storage.entry(&ID.chunk(1).item(1)).get().map(|song| song.favorite));
+    ///
+    /// // Entry::get_mut() supports mutation
+    /// if let Some(song) = storage.entry(&ID.chunk(1).item(2)).get_mut() {
+    ///   song.favorite = false;
+    /// }
+    /// assert_eq!(Some(false), storage.get(&ID.chunk(1).item(2)).map(|song| song.favorite));
+    ///
+    /// // Entry::and_modify() also supports mutation; does nothing if the item does not exist.
+    /// storage.entry(&ID.chunk(2).item(1)).and_modify(|song| {
+    ///   song.favorite = true;
+    /// });
+    /// assert_eq!(Some(true), storage.get(&ID.chunk(2).item(1)).map(|song| song.favorite));
+    ///
+    /// // Entry::or_insert_with() is another way to mutate,
+    /// // in this case inserting if the item does not exist.
+    /// let mut song = storage.entry(ID.chunk(3).item(1)).or_insert_with(|| Song {
+    ///   playlist_id: 3,
+    ///   song_id: 1,
+    ///   favorite: false,
+    /// });
+    /// song.favorite = true;
+    /// assert_eq!(Some(true), storage.get(&ID.chunk(3).item(1)).map(|song| song.favorite));
     ///
     /// # storage.validate();
     /// ```
-    pub fn entry<'a, R>(&'a mut self, unique_id: &'a R) -> Entry<'a, ChunkKey, ItemKey, Element>
+    pub fn entry<'a, R>(&'a mut self, unique_id: R) -> Entry<'a, R, ChunkKey, ItemKey, Element>
     where
         R: Record<ChunkKey, ItemKey> + 'a,
     {
@@ -448,6 +457,7 @@ where
     /// ```
     /// use retriever::prelude::*;
     ///
+    /// // Note that (A,B,C) implements Record<A,B>.
     /// let mut storage : Storage<usize,usize,(usize,usize,i64)> = Storage::new();
     ///
     /// storage.add((1,1000,17));
@@ -470,11 +480,11 @@ where
     ///
     /// # Type Parameters
     ///
-    /// `Q`: Any `Query`. There are a variety of useful `Queries`:
-    /// * `Everything`
-    /// * `Chunks(...)`, an explicit list of chunks
-    /// * `Id`, the Id of a specific element
-    /// * Most other `Queries` can be constructed by chaining the methods of the `Query` trait.
+    /// * `Q`: Any `Query`. There are a variety of useful `Queries`:
+    ///   * `Everything`
+    ///   * `Chunks(...)`, an explicit list of chunks
+    ///   * `Id`, the Id of a specific element
+    ///   * Most other `Queries` can be constructed by chaining the methods of the `Query` trait.
     ///
     /// # Example
     ///
@@ -482,6 +492,7 @@ where
     /// use retriever::prelude::*;
     /// use std::borrow::Cow;
     ///
+    /// // Note that (A,B,C) implements Record<A,B>.
     /// let mut storage : Storage<u8,u16,(u8,u16,i64)> = Storage::new();
     ///
     /// storage.add((1,1000,17));
@@ -494,6 +505,8 @@ where
     /// // All of these do the same thing:
     /// assert_eq!(0, storage.query(Everything).map(|x| x.2).sum::<i64>());
     /// assert_eq!(0, storage.query(&Everything).map(|x| x.2).sum::<i64>());
+    /// let chunk_ids : &[u8] = &[0,1,2,3];
+    /// assert_eq!(0, storage.query(Chunks(chunk_ids)).map(|x| x.2).sum::<i64>());
     /// assert_eq!(0, storage.query(&Chunks([0,1,2,3])).map(|x| x.2).sum::<i64>());
     /// assert_eq!(0, storage.query(&Chunks(vec![0,1,2,3])).map(|x| x.2).sum::<i64>());
     ///
@@ -537,11 +550,11 @@ where
     ///
     /// # Type Parameters
     ///
-    /// `Q`: Any `Query`. There are a variety of useful `Queries`:
-    /// * `Everything`
-    /// * `Chunks(...)`, an explicit list of chunks
-    /// * `Id`, the Id of a specific element
-    /// * Most other `Queries` can be constructed by chaining the methods of the `Query` trait.
+    /// * `Q`: Any `Query`. There are a variety of useful `Queries`:
+    ///   * `Everything`
+    ///   * `Chunks(...)`, an explicit list of chunks
+    ///   * `Id`, the Id of a specific element
+    ///   * Most other `Queries` can be constructed by chaining the methods of the `Query` trait.
     ///
     /// ```
     /// use retriever::prelude::*;
@@ -566,18 +579,20 @@ where
     ///
     /// storage.add(BankAccount { id: 1, balance: 25 });
     /// storage.add(BankAccount { id: 2, balance: 13 });
-    /// storage.add(BankAccount { id: 3, balance: 900 });
+    /// storage.add(BankAccount { id: 3, balance: -900 });
     /// storage.add(BankAccount { id: 4, balance: 27000 });
     /// storage.add(BankAccount { id: 5, balance: -13 });
     ///
     /// // Charge an overdraft fee to everyone with a negative balance.
-    /// storage.modify(&Everything, |mut account| {
-    ///   if account.get().balance < 0 {
-    ///     account.get_mut().balance -= 25;
-    ///   }
+    /// storage.modify(Everything.filter(|account : &BankAccount| account.balance < 0), |mut account| {
+    ///   account.get_mut().balance -= 25;
     /// });
     ///
-    /// assert_eq!(27900,storage.iter().map(|account| account.balance).sum::<i64>());
+    /// assert_eq!(Some(25),    storage.get(&ID.item(1)).map(|x| x.balance));
+    /// assert_eq!(Some(13),    storage.get(&ID.item(2)).map(|x| x.balance));
+    /// assert_eq!(Some(-925),  storage.get(&ID.item(3)).map(|x| x.balance));
+    /// assert_eq!(Some(27000), storage.get(&ID.item(4)).map(|x| x.balance));
+    /// assert_eq!(Some(-38),   storage.get(&ID.item(5)).map(|x| x.balance));
     ///
     /// # storage.validate();
     /// ```
@@ -597,11 +612,11 @@ where
     ///
     /// # Type Parameters
     ///
-    /// `Q`: Any `Query`. There are a variety of useful `Queries`:
-    /// * `Everything`
-    /// * `Chunks(...)`, an explicit list of chunks
-    /// * `Id`, the Id of a specific element
-    /// * Most other `Queries` can be constructed by chaining the methods of the `Query` trait.
+    /// * `Q`: Any `Query`. There are a variety of useful `Queries`:
+    ///   * `Everything`
+    ///   * `Chunks(...)`, an explicit list of chunks
+    ///   * `Id`, the Id of a specific element
+    ///   * Most other `Queries` can be constructed by chaining the methods of the `Query` trait.
     ///
     /// ```
     /// use retriever::prelude::*;
@@ -720,8 +735,12 @@ where
         &self.chunks
     }
 
-    /// Given a list of ChunkKeys updated by previous calls to gc(), delete all the ChunkKeys
-    /// that no longer exist in the specified HashMap.
+    /// This method provides garbage collection services for the caller. Assuming that the
+    /// `data` parameter is a HashMap that represents some data about chunks in this `Storage`,
+    /// this method deletes all of the entries in that `HashMap` that no longer exist this `Storage`.
+    ///
+    /// The `chunk_list` parameter is an `RVec` containing all chunk keys. It is created for the
+    /// purpose of being managed by this method and is managed entirely and only by this method.
     pub(crate) fn gc<T>(
         &self,
         chunk_list: &mut RVec<Option<ChunkKey>>,
