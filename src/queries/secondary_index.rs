@@ -16,7 +16,19 @@ use std::hash::Hash;
 use std::sync::Arc;
 use std::sync::RwLock;
 
-/// A Query matching against a SecondaryIndex. Construct using Query::matching(&SecondaryIndex, &IndexKey).
+/// A Query matching against a `SecondaryIndex`. Construct using `Query::matching`.
+///
+/// # Type Parameters
+///
+/// Most of these type parameters match the same parameters of the backing `SecondaryIndex`.
+///
+/// * `Q`: A `Query`.
+/// * `B`: A borrowed form of `IndexKey`. For example, if `IndexKey` is `String` then `B` might be `str`.
+/// * `ChunkKey`: Chunk key of the backing `Storage`.
+/// * `Element`: Element of the backing `Storage`.
+/// * `IndexKeys`: A collection containing elements of type `IndexKey`.
+/// * `IndexKey`: The indexing key of the backing `SecondaryIndex`.
+///
 pub struct MatchingSecondaryIndex<'a, Q, B, ChunkKey, Element, IndexKeys, IndexKey>
 where
     B: ToOwned + Hash + Eq + ?Sized + 'a,
@@ -61,28 +73,31 @@ where
 /// to a given `Storage` as you want. Each `SecondaryIndex` will index each stored element under
 /// zero or more key values (but only one key type).
 ///
-/// You must provide an indexing rule that looks at any given element and returns a collection of
-/// zero or more keys for that element. For example, in a `Storage` of automobiles, we might index
-/// by the model year using the collection type `Option(u32)`. On the other hand, in a `Storage` of
-/// paintings, we might index by the dominant colors featured in the painting using the collection
-/// type `Vec<String>`. In any case, if our index rules returns the value `None` or `vec![]`, then
-/// we will not have provided any secondary index keys and the element will not be indexed at all.
+/// # Type Parameters
 ///
-/// A case with mentioning is the collection type `Option(())` with its secondary index key `()`.
-/// This indexing rule would index all elements that have some property. Elements that do
-/// not have the property would not be indexed at all. This is preferable to using `Option(bool)`,
-/// for example, assuming that we know that we'll only ever search for the `true` case.
+/// * `ChunkKey`: The chunk key type of the `Storage`.
+/// * `Element`: The element type of the `Storage`.
+/// * `IndexKeys`: A collection containing the type parameter `IndexKey`. This could be an `Option`, `HashSet`, etc.
+/// * `IndexKey`: The type of the secondary index key. This is the key you'll use to look up `Elements` via this `SecondaryIndex`.
+///
+/// # How to choose `IndexKeys` and `IndexKey`.
+///
+/// | Situation                                  | `IndexKeys`          | `IndexKey`         |
+/// | ------------------------------------------ | -------------------- | ------------------ |
+/// | Index all emails marked "urgent"           | `Option<()>`         | `()`               |
+/// | Index automobiles by model year            | `Option<i32>`        | `i32`              |
+/// | Index artwork by dominant color            | `HashSet<Color>`     | `Color`            |
+///
+/// # Stability
+///
+/// It is likely that the class constraints on `IndexKeys` will change in the future. If so,
+/// `Option`, `HashSet`, and `BTreeSet` are relatively safe choices.
+///
+/// # Panic
 ///
 /// A `SecondaryIndex` is associated with exactly one storage.
 /// If you attempt to use a `SecondaryIndex` with a `Storage` other than the one it was
 /// initialized with, it will panic.
-///
-/// # Type Parameters
-///
-/// `ChunkKey`: The chunk key type of the `Storage`.
-/// `Element`: The element type of the `Storage`.
-/// `IndexKeys`: A collection containing the type parameter `IndexKey`. This could be an `Option`, `Vec`, `HashSet`, etc.
-/// `IndexKey`: The type of the secondary index key. This is the key you'll use to look up `Elements` via this `SecondaryIndex`.
 pub struct SecondaryIndex<ChunkKey, Element, IndexKeys, IndexKey>(
     Arc<RwLock<SecondaryIndexImpl<ChunkKey, Element, IndexKeys, IndexKey>>>,
 )
@@ -133,8 +148,7 @@ where
     /// Create a new SecondaryIndex of a storage.
     ///
     /// The indexing rule needs to return a collection of 0 or more `IndexKeys` for each `Element`.
-    /// Collection types that will work well include: `Vec`, `HashSet`, `BTreeSet`, `Option`,
-    /// and `SmallVec`. You do not need to enabled the `smallvec` feature to use a `SmallVec` here.
+    /// Collection types that will work well include: `Option`, `HashSet`, and `BTreeSet`.
     ///
     /// Try to re-use `SecondaryIndices` as much as possible. If you drop a `SecondaryIndex` and then
     /// re-create it, the index has to be rebuilt, which might take a long time.
@@ -154,7 +168,7 @@ where
         })))
     }
 
-    /// Panic if this storage is malformed or broken in any way.
+    /// Panic if this storage is malformed or broken in any detectable way.
     /// This is a slow operation and you shouldn't use it unless you suspect a problem.
     pub fn validate<ItemKey>(&self, parent: &Storage<ChunkKey, ItemKey, Element>)
     where

@@ -7,7 +7,8 @@ Retriever is ideal when you need to index a collection by multiple properties,
 you need a variety of relations between elements in a collection, or
 or you need to maintain summary statistics about a collection.
 
-![](./Callie_the_golden_retriever_puppy.jpg)
+![Callie, a golden retriever puppy.](./Callie_the_golden_retriever_puppy.jpg)
+(Image of Callie, a golden retriever puppy, by Wikimedia Commons user MichaelMcPhee.)
 
 ### Features:
 
@@ -22,21 +23,16 @@ or you need to maintain summary statistics about a collection.
 * Over 60 tests, doc-tests and benchmarks (need more)
 * Lots of full-featured examples to get started!
 
-### (Cargo) Features:
-
-* `fnv`: Index using the [fnv](https://crates.io/crates/fnv) hasher, which is faster but has
-  security caveats.
-* `log`: [Log](https://crates.io/crates/log) non-critical problems and performance caveats.
-* `smallvec`: Support [small vectors](https://crates.io/crates/smallvec) in certain positions
-  and also use small vector optimizations internally.
-
 ### Retriever does not have:
 
 * Parallelism. This is a "to-do".
 * Persistence. You can access the raw data for any chunk
   and pass it to serde for serialization. See `Storage::raw()` for an example.
 * Networking. Retriever is embedded in your application like any other crate. It doesn't
-  access anything over the network, nor can be accessed over a network.
+  access anything over the network, nor can it be accessed over a network.
+* Novelty. I've tried to make Retriever as simple and obvious as possible, and I hope people
+  will be able to pick it up and use it from the provided examples with little learning curve.
+  Where there are a lot of type parameters, I try to demystify them with appropriate documentation.
 
 ### Cow
 
@@ -115,7 +111,7 @@ storage.add(
 // Add some example puppies to work with
 storage.add(
   Puppy::new("Spot", Utc.ymd(2019, 1, 9))
-    .breeds(&["dalmation"])
+    .breeds(&["labrador", "dalmation"])
     .parent(2010, "Yeller")
 );
 
@@ -197,14 +193,16 @@ many-to-many relationships between records.
 ### Comparison to ECS (entity-component-system) frameworks
 
 Retriever can be used as a servicable component store, because records that share the same keys
-are easy to cross-reference with each other.
+are easy to cross-reference with each other. But Retriever is not designed specifically for
+games, and it tries to balance programmer comfort with reliability and performance.
 
-Retriever seeks to exploit performance opportunities from high-cardinality data
-(i.e., every record has a unique or mostly-unique key).
-My sense is that ECSs exist to exploit performance opportunities from low-cardinality data
-(i.e. there are thousands of instances of 13 types of monster in a dungeon and even those
-13 types share many overlapping qualities). If you need to use [Data Oriented Design](http://www.dataorienteddesign.com/dodmain.pdf)
-then you might consider an ECS like [specs](https://crates.io/crates/specs) or [legion](https://crates.io/crates/legion).
+The strategy for extracting high performance is completely different.
+ECSs use low-cardinality indexes to do an enormous amount of work very quickly.
+Retriever uses high-cardinality indexes to avoid as much work as possible.
+
+If you know you need to use [Data Oriented Design](http://www.dataorienteddesign.com/dodmain.pdf)
+then you might consider an ECS like [specs](https://crates.io/crates/specs) or
+[legion](https://crates.io/crates/legion).
 
 ### Getting started:
 
@@ -236,10 +234,10 @@ then you might consider an ECS like [specs](https://crates.io/crates/specs) or [
    on a handful of chunks at a time.
  * A good chunk key is predictable; you should always know what chunks you need to search
    to find a record.
- * A good chunk key might correspond to persistant storage, such as a single file in the file
-   file system. It's easy to load and unload chunks as a block.
+ * A good chunk key might correspond to persistent storage, such as a single file in the file
+   system. It's easy to load and unload chunks as a block.
  * For stores that represent geographical or spatial information, a good chunk key
-   might represent grid square or some other subdivision strategy.
+   might represent a grid square or some other subdivision strategy.
  * For a time-series database, a good chunk key might represent a time interval.
  * In a GUI framework, each window might have its own chunk, and each widget might be a record
    in that chunk.
@@ -249,6 +247,20 @@ then you might consider an ECS like [specs](https://crates.io/crates/specs) or [
  * If chunks are small enough, then the entire chunk and it's index might fit into cache.
 
 ### License
+
+Retriever is licensed under your choice of either the
+[ISC license](https://opensource.org/licenses/ISC)
+(a permissive license) or the
+[AGPL v3.0 or later](https://opensource.org/licenses/agpl-3.0)
+(a strong copyleft license).
+
+The photograph of the puppy is by Wikimedia Commons user MichaelMcPhee.
+[Creative Commons Attribution 3.0 Unported](https://creativecommons.org/licenses/by/3.0/).
+([Source](https://commons.wikimedia.org/wiki/File:Callie_the_golden_retriever_puppy.jpg))
+
+### Contributing
+
+
 
 ### To Do: (I want these features, but they aren't yet implemented)
 * Parallelism (will probably be implemented behind a rayon feature flag)
@@ -260,8 +272,8 @@ then you might consider an ECS like [specs](https://crates.io/crates/specs) or [
 * Need rigorous testing for space usage (currently no effort is made to shrink storage
   OR index vectors, this is priority #1 right now)
 * Lazy item key indexing is a potential performance win.
-* Convolution reductions mapping zero or more source chunks onto one destination chunk.
-* Idea: data elements could be stored in a [persistant data structure](https://en.wikipedia.org/wiki/Persistent_data_structure)
+* Convolutional reductions mapping zero or more source chunks onto one destination chunk.
+* Idea: data elements could be stored in a [persistent data structure](https://en.wikipedia.org/wiki/Persistent_data_structure)
   which might make it possible to iterate over elements while seperately mutating them. This idea needs research.
 * Theoretically, I expect retriever's performance to break down beyond about
   16 million chunks of 16 million elements, and secondary indexes are simply not scalable
