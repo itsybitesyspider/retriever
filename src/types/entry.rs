@@ -1,10 +1,10 @@
 use super::chunk_storage::ChunkStorage;
 use crate::traits::record::Record;
-use crate::traits::valid_key::ValidKey;
+use crate::traits::valid_key::{BorrowedKey, ValidKey};
 use std::borrow::Cow;
 use std::fmt::Debug;
 
-/// A Entry for an element. This is intended to work in the same way as the `Entries` from
+/// An `Entry` for an element. This is intended to work in the same way as the `Entries` from
 /// rust's standard collections API. An `Entry` refers to an element that we have tried to
 /// look up and might or might not have found.
 ///
@@ -15,11 +15,13 @@ use std::fmt::Debug;
 /// * `ItemKey`: The item key type of the backing `Storage`
 /// * `Element`: The element type of the backing `Storage`, and also the `Element` represented
 ///   by this `Entry`.
-pub struct Entry<'a, R, ChunkKey, ItemKey, Element>
+pub struct Entry<'a, R, ChunkKey: ?Sized, ItemKey: ?Sized, Element>
 where
     R: Record<ChunkKey, ItemKey> + 'a,
-    ChunkKey: Clone,
-    ItemKey: Clone,
+    ChunkKey: BorrowedKey,
+    ChunkKey::Owned: ValidKey,
+    ItemKey: BorrowedKey,
+    ItemKey::Owned: ValidKey,
 {
     id: R,
     idx: Option<usize>,
@@ -29,8 +31,10 @@ where
 impl<'a, R, ChunkKey, ItemKey, Element> Entry<'a, R, ChunkKey, ItemKey, Element>
 where
     R: Record<ChunkKey, ItemKey> + 'a,
-    ChunkKey: ValidKey,
-    ItemKey: ValidKey,
+    ChunkKey: BorrowedKey + ?Sized,
+    ChunkKey::Owned: ValidKey,
+    ItemKey: BorrowedKey + ?Sized,
+    ItemKey::Owned: ValidKey,
     Element: Record<ChunkKey, ItemKey>,
 {
     pub(super) fn new(
@@ -106,7 +110,7 @@ where
         self.idx.map(|idx| self.storage.get_idx(idx))
     }
 
-    /// Get a reference mutable reference to the element.
+    /// Get a mutable reference to the element.
     pub fn get_mut(&mut self) -> Option<&mut Element> {
         self.idx.map(move |idx| self.storage.get_idx_mut(idx))
     }

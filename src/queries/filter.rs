@@ -1,6 +1,6 @@
 use crate::traits::query::Query;
 use crate::traits::record::Record;
-use crate::traits::valid_key::ValidKey;
+use crate::traits::valid_key::{BorrowedKey, ValidKey};
 use crate::types::chunk_storage::ChunkStorage;
 use crate::types::storage::Storage;
 
@@ -21,8 +21,10 @@ impl<Q, F> Filter<Q, F> {
 
 impl<ChunkKey, ItemKey, Element, Q, F> Query<ChunkKey, ItemKey, Element> for Filter<Q, F>
 where
-    ChunkKey: ValidKey,
-    ItemKey: ValidKey,
+    ChunkKey: BorrowedKey + ?Sized,
+    ChunkKey::Owned: ValidKey,
+    ItemKey: BorrowedKey + ?Sized,
+    ItemKey::Owned: ValidKey,
     Element: Record<ChunkKey, ItemKey>,
     Q: Query<ChunkKey, ItemKey, Element>,
     F: Fn(&Element) -> bool,

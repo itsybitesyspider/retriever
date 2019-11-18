@@ -5,7 +5,7 @@ use crate::internal::mr::rvec::RVec;
 use crate::traits::idxset::IdxSet;
 use crate::traits::query::Query;
 use crate::traits::record::Record;
-use crate::traits::valid_key::ValidKey;
+use crate::traits::valid_key::{BorrowedKey, ValidKey};
 use crate::types::editor::Editor;
 use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
@@ -26,17 +26,25 @@ static ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 ///   within a chunk must have an `ItemKey` that is unique to that chunk.
 /// * `Element`: the type contained in this `Storage`.
 #[derive(Clone)]
-pub struct Storage<ChunkKey, ItemKey, Element> {
+pub struct Storage<ChunkKey: ?Sized, ItemKey: ?Sized, Element>
+where
+    ChunkKey: BorrowedKey,
+    ChunkKey::Owned: ValidKey,
+    ItemKey: BorrowedKey,
+    ItemKey::Owned: ValidKey,
+{
     id: u64,
     chunks: RVec<ChunkStorage<ChunkKey, ItemKey, Element>>,
     dirty: Vec<usize>,
-    index: HashMap<ChunkKey, usize, HasherImpl>,
+    index: HashMap<ChunkKey::Owned, usize, HasherImpl>,
 }
 
 impl<ChunkKey, ItemKey, Element> Storage<ChunkKey, ItemKey, Element>
 where
-    ChunkKey: ValidKey,
-    ItemKey: ValidKey,
+    ChunkKey: BorrowedKey + ?Sized,
+    ChunkKey::Owned: ValidKey,
+    ItemKey: BorrowedKey + ?Sized,
+    ItemKey::Owned: ValidKey,
     Element: Record<ChunkKey, ItemKey>,
 {
     /// Construct a new Storage.
@@ -90,8 +98,8 @@ where
             idx
         } else {
             let new_idx = self.chunks.len();
-            self.index.insert(chunk_key.clone(), new_idx);
-            self.chunks.push(ChunkStorage::new(chunk_key.clone()));
+            self.index.insert(chunk_key.to_owned(), new_idx);
+            self.chunks.push(ChunkStorage::new(chunk_key.to_owned()));
             new_idx
         };
 
@@ -250,9 +258,6 @@ where
     }
 
     /// Raw serial access to all element data by reference.
-    /// (Tip! You can use Serde to serialize this list of element references and later deserialize
-    /// them as owned values.)
-    ///
     /// In many cases, you may prefer to use `Storage::iter()` to simply iterate every element.
     ///
     /// You can also use `Storage::dissolve()`, but this consumes the `Storage`.
@@ -263,28 +268,28 @@ where
     /// use retriever::prelude::*;
     ///
     /// // Load some data into storage.
-    /// let mut storage : Storage<(), usize, (usize, String)> = Storage::new();
+    /// let mut storage : Storage<usize, usize, (usize, usize, String)> = Storage::new();
     ///
-    /// storage.add((0, String::from("hello")));
-    /// storage.add((1, String::from("doctor")));
-    /// storage.add((2, String::from("name")));
-    /// storage.add((3, String::from("continue")));
-    /// storage.add((4, String::from("yesterday")));
-    /// storage.add((5, String::from("tomorrow")));
+    /// storage.add((109, 0, String::from("hello")));
+    /// storage.add((109, 1, String::from("doctor")));
+    /// storage.add((109, 2, String::from("name")));
+    /// storage.add((9000, 3, String::from("continue")));
+    /// storage.add((9000, 4, String::from("yesterday")));
+    /// storage.add((9000, 5, String::from("tomorrow")));
     ///
-    /// let for_serialization : Vec<&[(usize, String)]> = storage.raw().collect();
+    /// let for_serialization : Vec<&[(usize, usize, String)]> = storage.raw().collect();
     /// let serialized = serde_json::to_string(&for_serialization).unwrap();
     ///
-    /// let deserialized : Vec<Vec<(usize, String)>> = serde_json::from_str(&serialized).unwrap();
-    /// let mut duplicated_storage : Storage<(), usize, (usize, String)> = Storage::new();
+    /// let deserialized : Vec<Vec<(usize, usize, String)>> = serde_json::from_str(&serialized).unwrap();
+    /// let mut duplicated_storage : Storage<usize, usize, (usize, usize, String)> = Storage::new();
     /// duplicated_storage.add_chunks(deserialized);
     ///
-    /// assert_eq!(Some(&(0,String::from("hello"))), duplicated_storage.get(&ID.item(0)));
-    /// assert_eq!(Some(&(1,String::from("doctor"))), duplicated_storage.get(&ID.item(1)));
-    /// assert_eq!(Some(&(2,String::from("name"))), duplicated_storage.get(&ID.item(2)));
-    /// assert_eq!(Some(&(3,String::from("continue"))), duplicated_storage.get(&ID.item(3)));
-    /// assert_eq!(Some(&(4,String::from("yesterday"))), duplicated_storage.get(&ID.item(4)));
-    /// assert_eq!(Some(&(5,String::from("tomorrow"))), duplicated_storage.get(&ID.item(5)));
+    /// assert_eq!(Some(&(109, 0, String::from("hello"))), duplicated_storage.get(&ID.chunk(109).item(0)));
+    /// assert_eq!(Some(&(109, 1, String::from("doctor"))), duplicated_storage.get(&ID.chunk(109).item(1)));
+    /// assert_eq!(Some(&(109, 2, String::from("name"))), duplicated_storage.get(&ID.chunk(109).item(2)));
+    /// assert_eq!(Some(&(9000, 3, String::from("continue"))), duplicated_storage.get(&ID.chunk(9000).item(3)));
+    /// assert_eq!(Some(&(9000, 4, String::from("yesterday"))), duplicated_storage.get(&ID.chunk(9000).item(4)));
+    /// assert_eq!(Some(&(9000, 5, String::from("tomorrow"))), duplicated_storage.get(&ID.chunk(9000).item(5)));
     ///
     /// # storage.validate();
     /// # duplicated_storage.validate();
@@ -714,7 +719,11 @@ where
         }
 
         for (chunk_key, idx) in self.index.iter() {
-            assert_eq!(self.chunks[*idx].chunk_key(), chunk_key, "index broken");
+            assert_eq!(
+                self.chunks[*idx].chunk_key(),
+                chunk_key.borrow(),
+                "index broken"
+            );
             assert_ne!(self.chunks[*idx].len(), 0, "empty chunk");
         }
 
@@ -725,8 +734,8 @@ where
 
     pub(crate) fn internal_idx_of<Q>(&self, chunk_key: &Q) -> Option<usize>
     where
-        Q: Hash + Eq,
-        ChunkKey: Borrow<Q>,
+        Q: Eq + Hash + ToOwned<Owned = ChunkKey::Owned> + ?Sized,
+        ChunkKey::Owned: Borrow<Q>,
     {
         self.index.get(chunk_key).cloned()
     }
@@ -743,12 +752,12 @@ where
     /// purpose of being managed by this method and is managed entirely and only by this method.
     pub(crate) fn gc<T>(
         &self,
-        chunk_list: &mut RVec<Option<ChunkKey>>,
-        data: &mut HashMap<ChunkKey, T, crate::internal::hasher::HasherImpl>,
+        chunk_list: &mut RVec<Option<ChunkKey::Owned>>,
+        data: &mut HashMap<ChunkKey::Owned, T, crate::internal::hasher::HasherImpl>,
     ) {
-        let mut removed: HashSet<ChunkKey, _> =
+        let mut removed: HashSet<ChunkKey::Owned, _> =
             HashSet::with_hasher(crate::internal::hasher::HasherImpl::default());
-        let mut added: HashSet<ChunkKey, _> =
+        let mut added: HashSet<ChunkKey::Owned, _> =
             HashSet::with_hasher(crate::internal::hasher::HasherImpl::default());
 
         chunk_list.reduce(&self.chunks, 1, |chunk_storages, prev_chunk_key, _| {
@@ -757,19 +766,21 @@ where
                     removed.insert(chunk_key.clone());
                 }
                 None
-            } else if Some(chunk_storages[0].chunk_key()) != prev_chunk_key.as_ref() {
-                added.insert(chunk_storages[0].chunk_key().clone());
+            } else if Some(chunk_storages[0].chunk_key())
+                != prev_chunk_key.as_ref().map(Borrow::borrow)
+            {
+                added.insert(chunk_storages[0].chunk_key().to_owned());
                 if let Some(chunk_key) = prev_chunk_key.as_ref() {
                     removed.insert(chunk_key.clone());
                 }
-                Some(Some(chunk_storages[0].chunk_key().clone()))
+                Some(Some(chunk_storages[0].chunk_key().to_owned()))
             } else {
                 None
             }
         });
 
         for chunk_key in removed.difference(&added) {
-            data.remove(chunk_key);
+            data.remove(chunk_key.borrow());
         }
     }
 }

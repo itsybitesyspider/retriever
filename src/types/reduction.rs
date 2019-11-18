@@ -1,7 +1,7 @@
 use crate::internal::mr::reduce::*;
 use crate::internal::mr::rvec::RVec;
 use crate::traits::record::Record;
-use crate::traits::valid_key::ValidKey;
+use crate::traits::valid_key::{BorrowedKey, ValidKey};
 use crate::types::storage::Storage;
 use std::collections::HashMap;
 
@@ -14,53 +14,59 @@ use std::collections::HashMap;
 /// * `ChunkKey`: matches the `ChunkKey` of the `Storage`.
 /// * `Element`: matches the `Element` of the `Storage`.
 /// * `Summary`: this is the type of the result of summarizing all of the `Elements` in `Storage`.
-pub struct Reduction<ChunkKey, Element, Summary> {
+pub struct Reduction<ChunkKey, Element, Summary>
+where
+    ChunkKey: BorrowedKey + ?Sized,
+    ChunkKey::Owned: ValidKey,
+{
     parent_id: u64,
     group_size: usize,
-    gc_chunk_list: RVec<Option<ChunkKey>>,
+    gc_chunk_list: RVec<Option<ChunkKey::Owned>>,
     rules: ReduceRules<Element, Summary>,
     chunkwise_reductions:
-        HashMap<ChunkKey, Reduce<Element, Summary>, crate::internal::hasher::HasherImpl>,
+        HashMap<ChunkKey::Owned, Reduce<Element, Summary>, crate::internal::hasher::HasherImpl>,
     chunkwise_summaries: RVec<Summary>,
     reduction: Reduce<Summary, Summary>,
 }
 
 impl<ChunkKey, Element, Summary> Reduction<ChunkKey, Element, Summary>
 where
-    ChunkKey: ValidKey,
+    ChunkKey: BorrowedKey + ?Sized,
+    ChunkKey::Owned: ValidKey,
     Summary: Default + Clone,
 {
-    /// Create a new Reduction on a storage.
+    /// Create a new `Reduction` on a `Storage`.
     ///
-    /// A reduction is constructed from two rules: `Map` and `Fold` (or reduce). The only
+    /// A `Reduction` is constructed from two rules: `Map` and `Fold` (or reduce). The only
     /// difference between these rules is that the `Map` rule examines a single element while
-    /// the `Fold` rule examines a list of summaries. Both rules receive a view of the old
-    /// summary (which may just be `Default::default()`, if the summary has never been
-    /// been computed before.
+    /// the `Fold` rule examines a list of `Summaries`. Both rules receive a reference to the old
+    /// `Summary`. If the `Summary` has never been evaluated before, then the old `Summary` will be
+    /// Summary::default().
     ///
-    /// Each rule constructs a new summary, and if the new summary is different from the old
-    /// summary, returns `Some(new_summary)`. If the summary is unchanged, indicate this by
+    /// Each rule constructs a new `Summary`, and if the new `Summary` is different from the old
+    /// `Summary`, returns `Some(new_summary)`. If the `Summary` is unchanged, indicate this by
     /// returning `None`.
     ///
-    /// Try to re-use Reductions as much as possible. If you drop a Reduction and re-create it,
-    /// then the Reduction's internal index has to be rebuilt, which might take a lot of time.
+    /// Try to re-use `Reductions` as much as possible. If you drop a `Reduction` and re-create it,
+    /// then the `Reduction`'s internal index has to be rebuilt, which might take a lot of time.
     ///
     /// # Type Parameters
     ///
-    /// * `I`: this is the `ItemKey` matching the `Storage`.
+    /// * `ItemKey`: this is the `ItemKey` matching the `Storage`.
     /// * `Map`: this operation produces a `Summary` of a single `Element`. If the result `Summary`
     ///   has not changed since the last `Summary`, return `None`.
     /// * `Fold`: this operations folds several `Summaries` into one `Summary`. If the result
     ///   `Summary` has not changed since the last `Summary`, return `None`.
-    pub fn new<I, Map, Fold>(
-        storage: &Storage<ChunkKey, I, Element>,
+    pub fn new<ItemKey, Map, Fold>(
+        storage: &Storage<ChunkKey, ItemKey, Element>,
         group_size: usize,
         map: Map,
         fold: Fold,
     ) -> Self
     where
-        I: ValidKey,
-        Element: Record<ChunkKey, I>,
+        ItemKey: BorrowedKey + ?Sized,
+        ItemKey::Owned: ValidKey,
+        Element: Record<ChunkKey, ItemKey>,
         Map: Fn(&Element, &Summary) -> Option<Summary> + Clone + 'static,
         Fold: Fn(&[Summary], &Summary) -> Option<Summary> + Clone + 'static,
     {
@@ -102,13 +108,14 @@ where
 
     fn gc<ItemKey>(&mut self, parent: &Storage<ChunkKey, ItemKey, Element>)
     where
-        ItemKey: ValidKey,
+        ItemKey: BorrowedKey + ?Sized,
+        ItemKey::Owned: ValidKey,
         Element: Record<ChunkKey, ItemKey>,
     {
         parent.gc(&mut self.gc_chunk_list, &mut self.chunkwise_reductions);
     }
 
-    /// Reduce all of the elements of the given Storage down to a single value.
+    /// Reduce all of the elements of the given `Storage` down to a single value.
     ///
     /// # Example
     ///
@@ -229,16 +236,20 @@ where
     /// assert!(summary.services.contains("mail"));
     /// assert!(summary.services.contains("games"));
     ///```
-    pub fn reduce<I>(&mut self, storage: &Storage<ChunkKey, I, Element>) -> Option<&Summary>
+    pub fn reduce<ItemKey>(
+        &mut self,
+        storage: &Storage<ChunkKey, ItemKey, Element>,
+    ) -> Option<&Summary>
     where
-        Element: Record<ChunkKey, I>,
-        I: ValidKey,
+        Element: Record<ChunkKey, ItemKey>,
+        ItemKey: BorrowedKey + ?Sized,
+        ItemKey::Owned: ValidKey,
     {
         assert_eq!(
-            self.parent_id,
-            storage.id(),
-            "Id mismatch: a Reduction may only be used with it's parent Storage, never any other Storage"
-        );
+      self.parent_id,
+      storage.id(),
+      "Id mismatch: a Reduction may only be used with it's parent Storage, never any other Storage"
+    );
 
         self.gc(storage);
 
@@ -271,20 +282,21 @@ where
     }
 
     /// Reduce all of the elements of a single chunk down to a single value.
-    pub fn reduce_chunk<I>(
+    pub fn reduce_chunk<ItemKey>(
         &mut self,
-        storage: &Storage<ChunkKey, I, Element>,
+        storage: &Storage<ChunkKey, ItemKey, Element>,
         chunk_key: &ChunkKey,
     ) -> Option<&Summary>
     where
-        Element: Record<ChunkKey, I>,
-        I: ValidKey,
+        Element: Record<ChunkKey, ItemKey>,
+        ItemKey: BorrowedKey + ?Sized,
+        ItemKey::Owned: ValidKey,
     {
         assert_eq!(
-            self.parent_id,
-            storage.id(),
-            "Id mismatch: a Reduction may only be used with it's parent Storage, never any other Storage"
-        );
+      self.parent_id,
+      storage.id(),
+      "Id mismatch: a Reduction may only be used with it's parent Storage, never any other Storage"
+    );
 
         self.gc(storage);
 
@@ -296,7 +308,7 @@ where
         let internal_storage = storage.internal_rvec()[idx].internal_rvec();
 
         chunkwise_reductions
-            .entry(chunk_key.clone())
+            .entry(chunk_key.to_owned())
             .or_insert_with(|| Reduce::new(internal_storage, group_size, rules.clone()))
             .update(&internal_storage)
     }

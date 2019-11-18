@@ -34,12 +34,6 @@ or you need to maintain summary statistics about a collection.
   will be able to pick it up and use it from the provided examples with little learning curve.
   Where there are a lot of type parameters, I try to demystify them with appropriate documentation.
 
-### Cow
-
-Retriever makes heavy use of [Cow](https://doc.rust-lang.org/std/borrow/enum.Cow.html)
-to represent various kinds of index keys. Using `Cow` allows retriever to bridge a wide
-range of use cases. A `Cow<T>` is either `Cow::Owned(T)` or `Cow::Borrowed(&T)`.
-
 ### Getting started:
 
 ```rust
@@ -89,18 +83,18 @@ impl Puppy {
 // We need to implement Record for our Puppy type.
 // Because of this design, we can never have two puppies with same name
 // rescued in the same year. They would have the same Id.
-impl Record<i32,String> for Puppy {
+impl Record<i32,str> for Puppy {
   fn chunk_key(&self) -> Cow<i32> {
     Cow::Owned(self.rescued_date.year())
   }
 
-  fn item_key(&self) -> Cow<String> {
+  fn item_key(&self) -> Cow<str> {
     Cow::Borrowed(&self.name)
   }
 }
 
 // Let's create a storage of puppies.
-let mut storage : Storage<i32,String,Puppy> = Storage::new();
+let mut storage : Storage<i32,str,Puppy> = Storage::new();
 
 storage.add(
   Puppy::new("Lucky", Utc.ymd(2019, 3, 27))
@@ -194,9 +188,8 @@ many-to-many relationships between records.
 
 Retriever can be used as a servicable component store, because records that share the same keys
 are easy to cross-reference with each other. But Retriever is not designed specifically for
-games, and it tries to balance programmer comfort with reliability and performance.
+game projects, and it tries to balance programmer comfort with reliability and performance.
 
-The strategy for extracting high performance is completely different.
 ECSs use low-cardinality indexes to do an enormous amount of work very quickly.
 Retriever uses high-cardinality indexes to avoid as much work as possible.
 
@@ -208,12 +201,12 @@ then you might consider an ECS like [specs](https://crates.io/crates/specs) or
 
 1. Create a rust struct or enum that represents a data item that you want to store.
 2. Choose a *chunk key* and *item key* for each instance of your record.
-  * Many records can share the same chunk key.
-  * No two records in the same chunk may have the same item key.
-  * All keys must be `Clone + Debug + Eq + Hash + Ord`. See `ValidKey`.
-  * If you don't want to use chunking or aren't sure what to types of chunk key to choose,
-    use () as the chunk key. Chunking is a feature that exists to help you --
-    you don't have to use it.
+   * Many records can share the same chunk key.
+   * No two records in the same chunk may have the same item key.
+   * All keys must be `Clone + Debug + Eq + Hash + Ord`. See `ValidKey`.
+   * If you don't want to use chunking or aren't sure what to types of chunk key to choose,
+     use () as the chunk key. Chunking is a feature that exists to help you --
+     you don't have to use it.
 3. Implement the Record<ChunkKey,ItemKey> trait for your choice of record, chunk key, and item
    key types.
 4. Create a new empty Storage object using `Storage::new()`.
@@ -223,17 +216,17 @@ then you might consider an ECS like [specs](https://crates.io/crates/specs) or
    secondary indexes by writing a single closure that maps records into zero or more secondary
    keys.
 7. If you want, create some reductions using `Reduction::new()`. Define reductions by writing
-   two closures: (1) A map from the record type to a summary type, and (2) a reduction
-   (or fold) of several summary objects into a single summary.
-8. Use `Reduction::reduce()` to reduce your entire storage to a single summary object, or
+   two closures: (1) A map from the record type to a summary type, and (2) a fold
+   of several summary objects into a single summary.
+   Use `Reduction::reduce()` to reduce your entire storage to a single summary object, or
    `Reduction::reduce_chunk()` to reduce a single chunk to a single summary object.
 
 #### More about how to choose a good chunk key:
 
  * A good chunk key will keep related records together; queries should usually just operate
    on a handful of chunks at a time.
- * A good chunk key is predictable; you should always know what chunks you need to search
-   to find a record.
+ * A good chunk key is predictable; ideally you know what chunk a record is in before you
+   go looking for it.
  * A good chunk key might correspond to persistent storage, such as a single file in the file
    system. It's easy to load and unload chunks as a block.
  * For stores that represent geographical or spatial information, a good chunk key
@@ -241,10 +234,29 @@ then you might consider an ECS like [specs](https://crates.io/crates/specs) or
  * For a time-series database, a good chunk key might represent a time interval.
  * In a GUI framework, each window might have its own chunk, and each widget might be a record
    in that chunk.
- * If you want to perform reductions on only part of your storage, then that part must be defined
+ * If you want to perform a `Reduction` on only part of your storage, then that part must be defined
    as a single chunk. In the future, I want to implement convolutional reductions that map onto
    zero or more chunks.
- * If chunks are small enough, then the entire chunk and it's index might fit into cache.
+
+#### About Cow
+
+Retriever makes heavy use of [Cow](https://doc.rust-lang.org/std/borrow/enum.Cow.html)
+to represent various kinds of index keys. Using `Cow` allows retriever to bridge a wide
+range of use cases.
+
+A `Cow<T>` is usually either `Cow::Owned(T)` or `Cow::Borrowed(&T)`. The generic parameter refers
+to the borrowed form, so `Cow<str>` is either `Cow::Owned<String>` or `Cow::Borrowed<&str>`.
+Whenever you see a `ChunkKey`, `ItemKey`, or `IndexKey`, these keys follow the same convention.
+
+These are good:
+
+* `Record<i64,str>`
+* `Record<i64,&'static str>`
+* `Record<i64,Arc<String>>`
+
+This will work for the most part but it's weird:
+
+* `Record<i64,String>`
 
 ### License
 
@@ -258,9 +270,17 @@ The photograph of the puppy is by Wikimedia Commons user MichaelMcPhee.
 [Creative Commons Attribution 3.0 Unported](https://creativecommons.org/licenses/by/3.0/).
 ([Source](https://commons.wikimedia.org/wiki/File:Callie_the_golden_retriever_puppy.jpg))
 
-### Contributing
+#### Contributing
 
+Unless you explicitly state otherwise, any contribution intentionally submitted for
+inclusion in retriever by you, shall be licensed as ISC OR AGPL-3.0-or-later,
+without any additional terms or conditions.
 
+### How to Help
+
+At this stage, bug reports and questions about any unclear documentation are highly valuable.
+I consider it appropriate to open a ticket just for technical support.
+I'm also interested in any suggestions that would help further simplify the codebase.
 
 ### To Do: (I want these features, but they aren't yet implemented)
 * Parallelism (will probably be implemented behind a rayon feature flag)

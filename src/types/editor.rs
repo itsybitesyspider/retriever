@@ -1,11 +1,17 @@
 use super::chunk_storage::ChunkStorage;
 use super::id::Id;
 use crate::traits::record::Record;
-use crate::traits::valid_key::ValidKey;
+use crate::traits::valid_key::{BorrowedKey, ValidKey};
 
 /// An Editor for an element. An instance of `Editor` is proof that the backing element
 /// exists in `Storage`, and allows unlimited mutation (but not removal) of that element.
-pub struct Editor<'a, ChunkKey, ItemKey, Element> {
+pub struct Editor<'a, ChunkKey: ?Sized, ItemKey: ?Sized, Element>
+where
+    ChunkKey: BorrowedKey,
+    ChunkKey::Owned: ValidKey,
+    ItemKey: BorrowedKey,
+    ItemKey::Owned: ValidKey,
+{
     id: Id<&'a ChunkKey, &'a ItemKey>,
     idx: usize,
     storage: &'a mut ChunkStorage<ChunkKey, ItemKey, Element>,
@@ -13,8 +19,10 @@ pub struct Editor<'a, ChunkKey, ItemKey, Element> {
 
 impl<'a, ChunkKey, ItemKey, Element> Editor<'a, ChunkKey, ItemKey, Element>
 where
-    ChunkKey: ValidKey,
-    ItemKey: ValidKey,
+    ChunkKey: BorrowedKey + ?Sized,
+    ChunkKey::Owned: ValidKey,
+    ItemKey: BorrowedKey + ?Sized,
+    ItemKey::Owned: ValidKey,
     Element: Record<ChunkKey, ItemKey>,
 {
     pub(super) fn new<'x>(

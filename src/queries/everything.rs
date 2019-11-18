@@ -1,7 +1,7 @@
 use crate::idxsets::idxrange::IdxRange;
 use crate::traits::query::Query;
 use crate::traits::record::Record;
-use crate::traits::valid_key::ValidKey;
+use crate::traits::valid_key::{BorrowedKey, ValidKey};
 use crate::types::chunk_storage::ChunkStorage;
 use crate::types::storage::Storage;
 
@@ -11,8 +11,10 @@ pub struct Everything;
 
 impl<ChunkKey, ItemKey, Element> Query<ChunkKey, ItemKey, Element> for Everything
 where
-    ChunkKey: ValidKey,
-    ItemKey: ValidKey,
+    ChunkKey: BorrowedKey + ?Sized,
+    ChunkKey::Owned: ValidKey,
+    ItemKey: BorrowedKey + ?Sized,
+    ItemKey::Owned: ValidKey,
     Element: Record<ChunkKey, ItemKey>,
 {
     type ChunkIdxSet = IdxRange;
