@@ -168,6 +168,10 @@ where
 
             self.index.remove(self.chunks[*idx].chunk_key());
             self.chunks.swap_remove(*idx);
+            if self.chunks.len() > *idx {
+                self.index
+                    .insert(self.chunks[*idx].chunk_key().clone(), *idx);
+            }
         }
 
         self.dirty.clear();

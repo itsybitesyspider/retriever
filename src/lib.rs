@@ -358,6 +358,8 @@ mod test {
             editor.get_mut().1 = 0x102;
             assert_eq!(&X(0x202, 0x102), editor.get());
         });
+
+        storage.validate();
     }
 
     #[test]
@@ -372,6 +374,8 @@ mod test {
         assert!(storage.get(&Id(0x0, 0x101)).is_some());
         assert!(storage.get(&Id(0x1, 0x111)).is_some());
         assert!(storage.get(&Id(0x0, 0x202)).is_none());
+
+        storage.validate();
     }
 
     #[test]
@@ -401,6 +405,9 @@ mod test {
                 .query(&Id(0x0, 0x101).matching(&even_odd, Cow::Owned(false)))
                 .next()
         );
+
+        storage.validate();
+        even_odd.validate(&storage);
     }
 
     #[test]
@@ -428,6 +435,9 @@ mod test {
             &[X(0x101, 0x111), X(0x121, 0x111)],
             odd_items_even_chunks.as_slice()
         );
+
+        storage.validate();
+        even_odd.validate(&storage);
     }
 
     #[test]
@@ -464,6 +474,9 @@ mod test {
         assert!(small_odds.contains(&X(0x505, 0x555)));
         assert!(!small_odds.contains(&X(0x202, 0x222)));
         assert!(!small_odds.contains(&X(0x707, 0x777)));
+        storage.validate();
+        even_odd.validate(&storage);
+        small.validate(&storage);
     }
 
     #[test]
@@ -516,5 +529,35 @@ mod test {
                 .count();
             reduction.reduce(&storage);
         }
+
+        storage.validate();
+        index.validate(&storage);
+    }
+
+    #[test]
+    fn test_chunk_chaos() {
+        use rand::Rng;
+
+        let mut storage: Storage<u8, u8, (u8, u8, u8)> = Storage::new();
+        let k = 255;
+
+        for i in 0..k {
+            storage.add((i, 0, 0));
+        }
+
+        for i in 0..k {
+            if rand::thread_rng().gen() {
+                storage.remove(ID.chunk(i).item(0), std::mem::drop);
+            }
+        }
+
+        for i in 0..k {
+            if rand::thread_rng().gen() {
+                // this is likely to panic if the chunk index is broken
+                storage.add((i, 1, 0));
+            }
+        }
+
+        storage.validate();
     }
 }
