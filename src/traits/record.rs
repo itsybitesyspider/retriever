@@ -1,17 +1,19 @@
 use crate::traits::valid_key::ValidKey;
 use std::borrow::Cow;
 
-/// A trait for any retrievable record. A record must provide a chunk key and an item key.
-/// The combination of chink key and item key must be unique for each record.
-/// If you do not want to use chunking, you can use () as the chunk key.
+/// A trait for any retrievable `Record`. A `Record` must provide a chunk key and an item key.
+/// The combination of chunk key and item key must be unique for each `Record`.
+/// If you do not want to use chunking, you can use `()` as the chunk key.
 pub trait Record<ChunkKey, ItemKey>
 where
-    ChunkKey: Clone,
-    ItemKey: Clone,
+    ChunkKey: ToOwned + ?Sized,
+    ChunkKey::Owned: Clone,
+    ItemKey: ToOwned + ?Sized,
+    ItemKey::Owned: Clone,
 {
-    /// Provide a chunk key for this record. It's normal and expected for many related records to
-    /// share the same chunk key. Records with the same chunk key are stored physically together.
-    /// It is easy to iterate over all records in a single chunk, and it's possible to remove an entire
+    /// Provide a chunk key for this `Record`. It's normal and expected for many related `Records` to
+    /// share the same chunk key. `Records` with the same chunk key are stored physically together.
+    /// It is easy to iterate over all `Records` in a single chunk, and it's possible to remove an entire
     /// chunk in constant time.
     fn chunk_key(&self) -> Cow<ChunkKey>;
 

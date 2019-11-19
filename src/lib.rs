@@ -8,54 +8,39 @@
 //! Retriever is ideal when you need to index a collection by multiple properties,
 //! you need a variety of relations between elements in a collection, or
 //! or you need to maintain summary statistics about a collection.
-//! Retriever can make your application data more easily discoverable, searchable, and auditable
-//! compared to a "big jumble of plain old rust types."
-//! Retriever can help reduce data redundancy and establish a single source of truth
-//! for all values.
 //!
-//! ![](./Callie_the_golden_retriever_puppy.jpg)
+//! ![Callie, a golden retriever puppy.](./Callie_the_golden_retriever_puppy.jpg)
+//! (Image of Callie, a golden retriever puppy, by Wikimedia Commons user MichaelMcPhee.)
 //!
 //! ## Features:
 //!
 //! * Document-oriented storage and retrieval.
 //! * Index by unlimited secondary keys.
-//! * Create indexes at will and drop them when no longer need them.
+//! * Create indexes at will and drop them when you no longer need them.
 //! * Lazy indexing. Pay re-indexing costs when you query the index, not before.
 //! * Choice of borrowed or computed (dynamic) keys (using [Cow](https://doc.rust-lang.org/std/borrow/enum.Cow.html)).
 //! * Map-reduce-style operations, if you want them.
 //! * Chunking: all records belonging to the same chunk are stored together in the same Vec.
-//! * 100% safe Rust with no default dependencies, not that I'm religious about it.
+//! * 100% safe Rust with no default dependencies.
 //! * Over 60 tests, doc-tests and benchmarks (need more)
 //! * Lots of full-featured examples to get started!
 //!
 //! ## Retriever does not have:
 //!
-//! * Parallelism. See "To Do" section.
+//! * Parallelism. This is a "to-do".
 //! * Persistence. You can access the raw data for any chunk
-//!   and pass it to serde for serialization.
-//! * Networking. Retriever is embedded in your application like any other crate.
-//!
-//! ## To Do: (I want these features, but they aren't yet implemented)
-//! * Parallelism (will probably be implemented behind a rayon feature flag)
-//! * Sorted indexes / range queries
-//! * Boolean queries (union, intersection, difference, etc -- note: you can perform intersection
-//!   queries now just by chaining query operators)
-//! * External mutable iterators (currently only internal iteration is supported for modify)
-//! * More small vector optimization in some places where I expect it to matter
-//! * Need rigorous testing for space leaks (currently no effort is made to shrink storage
-//!   OR index vectors, this is priority #1 right now)
-//! * Theoretically, I expect retriever's performance to break down beyond about
-//!   16 million chunks of 16 million elements, and secondary indexes are simply not scalable
-//!   for low-cardinality data. I would eventually like retriever to
-//!   scale up to "every electron in the universe" if someone somehow ever legally acquires
-//!   that tier of hardware.
+//!   and pass it to serde for serialization. See `Storage::raw()` for an example.
+//! * Networking. Retriever is embedded in your application like any other crate. It doesn't
+//!   access anything over the network, nor can it be accessed over a network.
+//! * Novelty. I've tried to make Retriever as simple and obvious as possible, and I hope people
+//!   will be able to pick it up and use it from the provided examples with little learning curve.
+//!   Where there are a lot of type parameters, I try to demystify them with appropriate documentation.
 //!
 //! ## Getting started:
 //!
 //! ```
 //! use retriever::prelude::*;
-//! use std::borrow::Cow;    // Cow is wonderful and simple to use but not widely known.
-//!                          // It's just an enum with Cow::Owned(T) or Cow::Borrowed(&T).
+//! use std::borrow::Cow;
 //! use chrono::prelude::*;  // Using rust's Chrono crate to handle date/time
 //!                          // (just for this example, you don't need it)
 //! use std::collections::HashSet;
@@ -100,36 +85,36 @@
 //! // We need to implement Record for our Puppy type.
 //! // Because of this design, we can never have two puppies with same name
 //! // rescued in the same year. They would have the same Id.
-//! impl Record<i32,String> for Puppy {
+//! impl Record<i32,str> for Puppy {
 //!   fn chunk_key(&self) -> Cow<i32> {
 //!     Cow::Owned(self.rescued_date.year())
 //!   }
 //!
-//!   fn item_key(&self) -> Cow<String> {
+//!   fn item_key(&self) -> Cow<str> {
 //!     Cow::Borrowed(&self.name)
 //!   }
 //! }
 //!
 //! // Let's create a storage of puppies.
-//! let mut storage : Storage<i32,String,Puppy> = Storage::new();
-//!
-//! // Add some example puppies to work with
-//! storage.add(
-//!   Puppy::new("Spot", Utc.ymd(2019, 1, 9))
-//!     .breeds(&["labrador","dalmation"])
-//!     .parent(2010, "Yeller")
-//! );
+//! let mut storage : Storage<i32,str,Puppy> = Storage::new();
 //!
 //! storage.add(
 //!   Puppy::new("Lucky", Utc.ymd(2019, 3, 27))
 //!     .adopted(Utc.ymd(2019, 9, 13))
-//!     .breeds(&["dachshund","poodle"])
+//!     .breeds(&["beagle"])
+//! );
+//!
+//! // Add some example puppies to work with
+//! storage.add(
+//!   Puppy::new("Spot", Utc.ymd(2019, 1, 9))
+//!     .breeds(&["labrador", "dalmation"])
+//!     .parent(2010, "Yeller")
 //! );
 //!
 //! storage.add(
 //!   Puppy::new("JoJo", Utc.ymd(2018, 9, 2))
 //!     .adopted(Utc.ymd(2019, 5, 1))
-//!     .breeds(&["labrador","yorkie"])
+//!     .breeds(&["labrador","shepherd"])
 //!     .parent(2010, "Yeller")
 //! );
 //!
@@ -154,7 +139,6 @@
 //! assert_eq!(vec!["JoJo","Lucky","Spot"], rescued_recently);
 //!
 //! // Get all puppies rescued in march:
-//! // This is an inefficient query, because the 'filter' operation tests every record.
 //! let q = Everything.filter(|puppy: &Puppy| puppy.rescued_date.month() == 3);
 //! let mut rescued_in_march : Vec<_> = storage.query(&q)
 //!   .map(|puppy| &puppy.name).collect();
@@ -162,12 +146,14 @@
 //! assert_eq!(vec!["Lucky"], rescued_in_march);
 //!
 //! // Fix spelling of "dalmatian" on all puppies:
-//! storage.modify(&Everything, |mut editor| {
-//!   if editor.get().breed.contains("dalmation") {
-//!     editor.get_mut().breed.remove("dalmation");
-//!     editor.get_mut().breed.insert(String::from("dalmatian"));
-//!   }
+//! let q = Everything.filter(|puppy : &Puppy| puppy.breed.contains("dalmation"));
+//! storage.modify(&q, |mut editor| {
+//!   let puppy = editor.get_mut();
+//!   puppy.breed.remove("dalmation");
+//!   puppy.breed.insert(String::from("dalmatian"));
 //! });
+//! assert_eq!(0, storage.iter().filter(|x| x.breed.contains("dalmation")).count());
+//! assert_eq!(1, storage.iter().filter(|x| x.breed.contains("dalmatian")).count());
 //!
 //! // Set up an index of puppies by their parent.
 //! // In SecondaryIndexes, we always return a collection of secondary keys.
@@ -203,65 +189,119 @@
 //! ## Comparison to ECS (entity-component-system) frameworks
 //!
 //! Retriever can be used as a servicable component store, because records that share the same keys
-//! are easy to cross-reference with each other.
+//! are easy to cross-reference with each other. But Retriever is not designed specifically for
+//! game projects, and it tries to balance programmer comfort with reliability and performance.
 //!
-//! Retriever seeks to exploit performance opportunities from high-cardinality data
-//! (i.e., every record has a unique or mostly-unique key).
-//! My sense is that ECSs exist to exploit performance opportunities from low-cardinality data
-//! (i.e. there are thousands of instances of 13 types of monster in a dungeon and even those
-//! 13 types share many overlapping qualities). If you need to use [Data Oriented Design](http://www.dataorienteddesign.com/dodmain.pdf)
-//! then you should an ECS like [specs](https://crates.io/crates/specs).
+//! ECSs use low-cardinality indexes to do an enormous amount of work very quickly.
+//! Retriever uses high-cardinality indexes to avoid as much work as possible.
+//!
+//! If you know you need to use [Data Oriented Design](http://www.dataorienteddesign.com/dodmain.pdf)
+//! then you might consider an ECS like [specs](https://crates.io/crates/specs) or
+//! [legion](https://crates.io/crates/legion).
 //!
 //! ## Getting started:
 //!
 //! 1. Create a rust struct or enum that represents a data item that you want to store.
 //! 2. Choose a *chunk key* and *item key* for each instance of your record.
-//!   * Many records can share the same chunk key.
-//!   * No two records in the same chunk may have the same item key.
-//!   * A record is uniquely identified by it's (ChunkKey,ItemKey) pair.
-//!   * Retriever uses Cow to get the chunk key and item key for each record, so a key can be
-//!     borrowed from the record *or* a key can be dynamically computed.
-//!   * All keys must be `Clone + Debug + Eq + Hash + Ord`. See `ValidKey`.
-//!   * If you don't want to use chunking or aren't sure what to types of chunk key to choose,
-//!     use () as the chunk key. Chunking is a feature that exists to help you --
-//!     you don't have to use it.
+//!    * Many records can share the same chunk key.
+//!    * No two records in the same chunk may have the same item key.
+//!    * All keys must be `Clone + Debug + Eq + Hash + Ord`. See `ValidKey`.
+//!    * If you don't want to use chunking or aren't sure what to types of chunk key to choose,
+//!      use () as the chunk key. Chunking is a feature that exists to help you --
+//!      you don't have to use it.
 //! 3. Implement the Record<ChunkKey,ItemKey> trait for your choice of record, chunk key, and item
 //!    key types.
 //! 4. Create a new empty Storage object using `Storage::new()`.
-//! 5. If you want, create some secondary indexes using `SecondaryIndex::new()`. Define
+//! 5. Use `Storage::add()`, `Storage::iter()`, `Storage::query()`, `Storage::modify()`, and
+//!    `Storage::remove()` to implement CRUD operations on your storage.
+//! 6. If you want, create some secondary indexes using `SecondaryIndex::new()`. Define
 //!    secondary indexes by writing a single closure that maps records into zero or more secondary
 //!    keys.
-//! 6. Create some reductions using `Reduction::new()`. Define reductions by writing two
-//!    closures: (1) A map from the record type to a summary type, and (2) a reduction (or fold) of
-//!    several summary objects into a single summary. The `Reduction` performs these reduction
-//!    steps recursively until only single summary remains for the entire data store, and caches
-//!    all intermediate steps so that recalculating after a change is fast.
-//! 7. Keep the `Storage`, `SecondaryIndices`, and `Reductions` together for later use.
-//!    Avoid dropping `SecondaryIndices` or `Reductions`, because they are expensive to re-compute.
-//! 8. Use `Storage::add()`, `Storage::iter()`, `Storage::query()`, `Storage::modify()`, and
-//!    `Storage::remove()` to implement CRUD operations on your storage.
-//! 9. Use `Reduction::reduce()` to reduce your entire storage to a single summary object, or
+//! 7. If you want, create some reductions using `Reduction::new()`. Define reductions by writing
+//!    two closures: (1) A map from the record type to a summary type, and (2) a fold
+//!    of several summary objects into a single summary.
+//!    Use `Reduction::reduce()` to reduce your entire storage to a single summary object, or
 //!    `Reduction::reduce_chunk()` to reduce a single chunk to a single summary object.
 //!
-//! ### More about how to choose a good chunk key
+//! ### More about how to choose a good chunk key:
 //!
 //!  * A good chunk key will keep related records together; queries should usually just operate
 //!    on a handful of chunks at a time.
-//!  * A good chunk key is predictable; you should always know what chunks you need to search
-//!    to find a record.
-//!  * A good chunk key might correspond to persistant storage, such as a single file in the file
-//!    file system. It's easy to load and unload chunks as a block.
-//!  * For stores that represent geographical or spatial information information, a good chunk key
-//!    might represent grid square or some other subdivision strategy.
+//!  * A good chunk key is predictable; ideally you know what chunk a record is in before you
+//!    go looking for it.
+//!  * A good chunk key might correspond to persistent storage, such as a single file in the file
+//!    system. It's easy to load and unload chunks as a block.
+//!  * For stores that represent geographical or spatial information, a good chunk key
+//!    might represent a grid square or some other subdivision strategy.
 //!  * For a time-series database, a good chunk key might represent a time interval.
 //!  * In a GUI framework, each window might have its own chunk, and each widget might be a record
 //!    in that chunk.
-//!  * If you want to perform reductions on only part of your storage, then that part must be defined
+//!  * If you want to perform a `Reduction` on only part of your storage, then that part must be defined
 //!    as a single chunk. In the future, I want to implement convolutional reductions that map onto
-//!    multiple chunks, but I haven't yet imagined a reduction scheme that would somehow operate
-//!    on partial chunks (nor have I imagined a motivation for doing this).
-//!  * If chunks are small enough, then the entire chunk and it's index might fit into cache.
+//!    zero or more chunks.
 //!
+//! ### About Cow
+//!
+//! Retriever makes heavy use of [Cow](https://doc.rust-lang.org/std/borrow/enum.Cow.html)
+//! to represent various kinds of index keys. Using `Cow` allows retriever to bridge a wide
+//! range of use cases.
+//!
+//! A `Cow<T>` is usually either `Cow::Owned(T)` or `Cow::Borrowed(&T)`. The generic parameter refers
+//! to the borrowed form, so `Cow<str>` is either `Cow::Owned<String>` or `Cow::Borrowed<&str>`.
+//! Whenever you see a `ChunkKey`, `ItemKey`, or `IndexKey`, these keys follow the same convention.
+//!
+//! These are good:
+//!
+//! * `Record<i64,str>`
+//! * `Record<i64,&'static str>`
+//! * `Record<i64,Arc<String>>`
+//!
+//! This will work for the most part but it's weird:
+//!
+//! * `Record<i64,String>`
+//!
+//! ## License
+//!
+//! Retriever is licensed under your choice of either the
+//! [ISC license](https://opensource.org/licenses/ISC)
+//! (a permissive license) or the
+//! [AGPL v3.0 or later](https://opensource.org/licenses/agpl-3.0)
+//! (a strong copyleft license).
+//!
+//! The photograph of the puppy is by Wikimedia Commons user MichaelMcPhee.
+//! [Creative Commons Attribution 3.0 Unported](https://creativecommons.org/licenses/by/3.0/).
+//! ([Source](https://commons.wikimedia.org/wiki/File:Callie_the_golden_retriever_puppy.jpg))
+//!
+//! ### Contributing
+//!
+//! Unless you explicitly state otherwise, any contribution intentionally submitted for
+//! inclusion in retriever by you, shall be licensed as ISC OR AGPL-3.0-or-later,
+//! without any additional terms or conditions.
+//!
+//! ## How to Help
+//!
+//! At this stage, bug reports and questions about any unclear documentation are highly valuable.
+//! I consider it appropriate to open a ticket just for technical support.
+//! I'm also interested in any suggestions that would help further simplify the codebase.
+//!
+//! ## To Do: (I want these features, but they aren't yet implemented)
+//! * Parallelism (will probably be implemented behind a rayon feature flag)
+//! * Sorted indexes / range queries
+//! * Boolean queries (union, intersection, difference, etc -- note: you can perform intersection
+//!   queries now just by chaining query operators)
+//! * External mutable iterators (currently only internal iteration is supported for modify)
+//! * More small vector optimization in some places where I expect it to matter
+//! * Need rigorous testing for space usage (currently no effort is made to shrink storage
+//!   OR index vectors, this is priority #1 right now)
+//! * Lazy item key indexing is a potential performance win.
+//! * Convolutional reductions mapping zero or more source chunks onto one destination chunk.
+//! * Idea: data elements could be stored in a [persistent data structure](https://en.wikipedia.org/wiki/Persistent_data_structure)
+//!   which might make it possible to iterate over elements while seperately mutating them. This idea needs research.
+//! * Theoretically, I expect retriever's performance to break down beyond about
+//!   16 million chunks of 16 million elements, and secondary indexes are simply not scalable
+//!   for low-cardinality data. I would eventually like retriever to
+//!   scale up to "every electron in the universe" if someone somehow ever legally acquires
+//!   that tier of hardware.
 
 /// Module that implements a sparse, compact `Bitset` implementation.
 pub mod bits;
@@ -291,7 +331,7 @@ mod test {
     use crate::types::reduction::Reduction;
     use std::borrow::Cow;
 
-    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
     struct X(u64, u64);
 
     impl Record<u64, u64> for X {
@@ -301,6 +341,19 @@ mod test {
 
         fn item_key(&self) -> Cow<u64> {
             Cow::Borrowed(&self.0)
+        }
+    }
+
+    #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+    struct S(String, String, String);
+
+    impl Record<str, str> for S {
+        fn chunk_key(&self) -> Cow<str> {
+            Cow::Borrowed(&self.0)
+        }
+
+        fn item_key(&self) -> Cow<str> {
+            Cow::Borrowed(&self.1)
         }
     }
 
@@ -459,7 +512,7 @@ mod test {
         storage.add(X(0x606, 0x666));
         storage.add(X(0x707, 0x777));
 
-        let small_odds: Vec<X> = storage
+        let mut small_odds: Vec<X> = storage
             .query(
                 &Everything
                     .matching(&even_odd, Cow::Owned(true))
@@ -474,6 +527,28 @@ mod test {
         assert!(small_odds.contains(&X(0x505, 0x555)));
         assert!(!small_odds.contains(&X(0x202, 0x222)));
         assert!(!small_odds.contains(&X(0x707, 0x777)));
+
+        // Reverse the order of the intersection to get the same result
+        let mut odd_smalls: Vec<X> = storage
+            .query(
+                &Everything
+                    .matching(&small, Cow::Owned(true))
+                    .matching(&even_odd, Cow::Owned(true)),
+            )
+            .cloned()
+            .collect();
+
+        assert_eq!(3, small_odds.len());
+        assert!(odd_smalls.contains(&X(0x101, 0x111)));
+        assert!(odd_smalls.contains(&X(0x303, 0x333)));
+        assert!(odd_smalls.contains(&X(0x505, 0x555)));
+        assert!(!odd_smalls.contains(&X(0x202, 0x222)));
+        assert!(!odd_smalls.contains(&X(0x707, 0x777)));
+
+        small_odds.sort();
+        odd_smalls.sort();
+        assert_eq!(small_odds, odd_smalls);
+
         storage.validate();
         even_odd.validate(&storage);
         small.validate(&storage);
@@ -559,5 +634,145 @@ mod test {
         }
 
         storage.validate();
+    }
+
+    #[test]
+    fn test_entry() {
+        let mut storage: Storage<u64, u64, X> = Storage::new();
+
+        storage
+            .entry(&ID.chunk(0).item(0))
+            .or_insert_with(|| X(0, 0));
+        storage
+            .entry(&ID.chunk(0).item(0))
+            .or_insert_with(|| X(0, 0))
+            .1 += 1;
+        storage.entry(&ID.chunk(0).item(0)).and_modify(|x| {
+            x.1 += 10;
+        });
+        storage
+            .entry(&ID.chunk(0).item(0))
+            .or_insert_with(|| X(0, 0))
+            .1 += 1;
+        assert_eq!(Some(&X(0, 12)), storage.entry(&ID.chunk(0).item(0)).get());
+        storage.entry(&ID.chunk(0).item(0)).remove_if(|x| x.1 != 12);
+        storage.entry(&ID.chunk(0).item(0)).or_panic();
+        storage.entry(&ID.chunk(0).item(0)).remove_if(|x| x.1 == 12);
+        assert_eq!(None, storage.entry(&ID.chunk(0).item(0)).get());
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_entry_with_bogus_chunk() {
+        let mut storage: Storage<u64, u64, X> = Storage::new();
+
+        storage
+            .entry(&ID.chunk(0).item(16))
+            .or_insert_with(|| X(16, 0));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_entry_with_bogus_item() {
+        let mut storage: Storage<u64, u64, X> = Storage::new();
+
+        storage
+            .entry(&ID.chunk(0).item(16))
+            .or_insert_with(|| X(1, 0));
+    }
+
+    #[test]
+    fn test_str() {
+        let mut storage: Storage<str, str, S> = Storage::new();
+
+        storage.add(S(
+            String::from("broberts"),
+            String::from("name"),
+            String::from("Bob Roberts"),
+        ));
+        storage.add(S(
+            String::from("broberts"),
+            String::from("password"),
+            String::from("password1"),
+        ));
+        storage.add(S(
+            String::from("ssmith"),
+            String::from("name"),
+            String::from("Sue Smith"),
+        ));
+        storage.add(S(
+            String::from("ssmith"),
+            String::from("password"),
+            String::from("1234"),
+        ));
+
+        assert_eq!(
+            Some("Bob Roberts"),
+            storage
+                .get(&ID.chunk("broberts").item("name"))
+                .map(|s| s.2.as_str())
+        );
+        assert_eq!(
+            Some("Bob Roberts"),
+            storage
+                .get(&ID.chunk(String::from("broberts")).item("name"))
+                .map(|s| s.2.as_str())
+        );
+        assert_eq!(
+            Some("Bob Roberts"),
+            storage
+                .get(&ID.chunk("broberts").item(String::from("name")))
+                .map(|s| s.2.as_str())
+        );
+        assert_eq!(
+            Some("Bob Roberts"),
+            storage
+                .get(
+                    &ID.chunk(String::from("broberts"))
+                        .item(String::from("name"))
+                )
+                .map(|s| s.2.as_str())
+        );
+        assert_eq!(
+            Some("Bob Roberts"),
+            storage
+                .get(
+                    &ID.chunk(Cow::Borrowed("broberts"))
+                        .item(String::from("name"))
+                )
+                .map(|s| s.2.as_str())
+        );
+        assert_eq!(
+            Some("Bob Roberts"),
+            storage
+                .get(
+                    &ID.chunk(Cow::Owned(String::from("broberts")))
+                        .item(Cow::Borrowed("name"))
+                )
+                .map(|s| s.2.as_str())
+        );
+        assert_eq!(
+            Some("Bob Roberts"),
+            storage
+                .get(
+                    &ID.chunk(Cow::Owned(String::from("broberts")))
+                        .item(Cow::Owned(String::from("name")))
+                )
+                .map(|s| s.2.as_str())
+        );
+
+        assert_eq!(
+            2,
+            storage
+                .query(Chunks(vec![String::from("broberts")]))
+                .count()
+        );
+        assert_eq!(
+            2,
+            storage
+                .query(Chunks(vec![Cow::Borrowed("broberts")]))
+                .count()
+        );
+        assert_eq!(2, storage.query(Chunks(vec!["broberts"])).count());
     }
 }

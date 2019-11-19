@@ -3,7 +3,7 @@ use crate::bits::Bitset;
 use crate::idxsets::idxrange::IdxRange;
 use crate::traits::query::Query;
 use crate::traits::record::Record;
-use crate::traits::valid_key::ValidKey;
+use crate::traits::valid_key::{BorrowedKey, ValidKey};
 use crate::types::chunk_storage::ChunkStorage;
 use crate::types::storage::Storage;
 use std::borrow::Borrow;
@@ -24,136 +24,114 @@ use std::ops::RangeInclusive;
 #[derive(Copy, Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Chunks<A>(pub A);
 
+macro_rules! common_chunk_idxs_impl {
+  () => {
+    fn chunk_idxs(&self, storage: &Storage<ChunkKey, ItemKey, Element>) -> Self::ChunkIdxSet {
+      self.0
+        .iter()
+        .filter_map(|x| storage.internal_idx_of(x.borrow()))
+        .collect()
+    }
+  }
+}
+
+macro_rules! common_item_idxs_impl {
+  () => {
+    fn item_idxs(
+      &self,
+      _chunk_key: &ChunkKey,
+      chunk_storage: &ChunkStorage<ChunkKey, ItemKey, Element>,
+    ) -> Self::ItemIdxSet {
+      IdxRange(0..chunk_storage.len())
+    }
+  }
+}
+
+macro_rules! common_test_impl {
+  () => {
+    #[inline(always)]
+    fn test(&self, _element: &Element) -> bool {
+      true
+    }
+  }
+}
+
 impl<Q, ChunkKey, ItemKey, Element> Query<ChunkKey, ItemKey, Element> for Chunks<Vec<Q>>
 where
-    Q: ValidKey,
-    ChunkKey: ValidKey + Borrow<Q>,
-    ItemKey: ValidKey,
+    Q: ValidKey + Borrow<ChunkKey>,
+    ChunkKey: BorrowedKey + ?Sized,
+    ChunkKey::Owned: ValidKey + Borrow<ChunkKey>,
+    ItemKey: BorrowedKey + ?Sized,
+    ItemKey::Owned: ValidKey,
     Element: Record<ChunkKey, ItemKey>,
 {
     type ChunkIdxSet = Bitset;
     type ItemIdxSet = IdxRange;
 
-    fn chunk_idxs(&self, storage: &Storage<ChunkKey, ItemKey, Element>) -> Self::ChunkIdxSet {
-        self.0
-            .iter()
-            .filter_map(|x| storage.internal_idx_of(&x))
-            .collect()
-    }
-
-    fn item_idxs(
-        &self,
-        _chunk_key: &ChunkKey,
-        chunk_storage: &ChunkStorage<ChunkKey, ItemKey, Element>,
-    ) -> Self::ItemIdxSet {
-        IdxRange(0..chunk_storage.len())
-    }
-
-    #[inline(always)]
-    fn test(&self, _element: &Element) -> bool {
-        true
-    }
+    common_chunk_idxs_impl!();
+    common_item_idxs_impl!();
+    common_test_impl!();
 }
 
 impl<Q, S, ChunkKey, ItemKey, Element> Query<ChunkKey, ItemKey, Element> for Chunks<HashSet<Q, S>>
 where
-    Q: ValidKey,
-    ChunkKey: ValidKey + Borrow<Q>,
-    ItemKey: ValidKey,
+    Q: ValidKey + Borrow<ChunkKey>,
+    ChunkKey: BorrowedKey + ?Sized,
+    ChunkKey::Owned: ValidKey + Borrow<ChunkKey>,
+    ItemKey: BorrowedKey + ?Sized,
+    ItemKey::Owned: ValidKey,
     Element: Record<ChunkKey, ItemKey>,
 {
     type ChunkIdxSet = Bitset;
     type ItemIdxSet = IdxRange;
 
-    fn chunk_idxs(&self, storage: &Storage<ChunkKey, ItemKey, Element>) -> Self::ChunkIdxSet {
-        self.0
-            .iter()
-            .filter_map(|x| storage.internal_idx_of(&x))
-            .collect()
-    }
-
-    fn item_idxs(
-        &self,
-        _chunk_key: &ChunkKey,
-        chunk_storage: &ChunkStorage<ChunkKey, ItemKey, Element>,
-    ) -> Self::ItemIdxSet {
-        IdxRange(0..chunk_storage.len())
-    }
-
-    #[inline(always)]
-    fn test(&self, _element: &Element) -> bool {
-        true
-    }
+    common_chunk_idxs_impl!();
+    common_item_idxs_impl!();
+    common_test_impl!();
 }
 
 impl<Q, ChunkKey, ItemKey, Element> Query<ChunkKey, ItemKey, Element> for Chunks<BTreeSet<Q>>
 where
-    Q: ValidKey,
-    ChunkKey: ValidKey + Borrow<Q>,
-    ItemKey: ValidKey,
+    Q: ValidKey + Borrow<ChunkKey>,
+    ChunkKey: BorrowedKey + ?Sized,
+    ChunkKey::Owned: ValidKey + Borrow<ChunkKey>,
+    ItemKey: BorrowedKey + ?Sized,
+    ItemKey::Owned: ValidKey,
     Element: Record<ChunkKey, ItemKey>,
 {
     type ChunkIdxSet = Bitset;
     type ItemIdxSet = IdxRange;
 
-    fn chunk_idxs(&self, storage: &Storage<ChunkKey, ItemKey, Element>) -> Self::ChunkIdxSet {
-        self.0
-            .iter()
-            .filter_map(|x| storage.internal_idx_of(&x))
-            .collect()
-    }
-
-    fn item_idxs(
-        &self,
-        _chunk_key: &ChunkKey,
-        chunk_storage: &ChunkStorage<ChunkKey, ItemKey, Element>,
-    ) -> Self::ItemIdxSet {
-        IdxRange(0..chunk_storage.len())
-    }
-
-    #[inline(always)]
-    fn test(&self, _element: &Element) -> bool {
-        true
-    }
+    common_chunk_idxs_impl!();
+    common_item_idxs_impl!();
+    common_test_impl!();
 }
 
 impl<'a, Q, ChunkKey, ItemKey, Element> Query<ChunkKey, ItemKey, Element> for Chunks<&'a [Q]>
 where
-    Q: ValidKey,
-    ChunkKey: ValidKey + Borrow<Q>,
-    ItemKey: ValidKey,
+    Q: ValidKey + Borrow<ChunkKey>,
+    ChunkKey: BorrowedKey + ?Sized,
+    ChunkKey::Owned: ValidKey + Borrow<ChunkKey>,
+    ItemKey: BorrowedKey + ?Sized,
+    ItemKey::Owned: ValidKey,
     Element: Record<ChunkKey, ItemKey>,
 {
     type ChunkIdxSet = Bitset;
     type ItemIdxSet = IdxRange;
 
-    fn chunk_idxs(&self, storage: &Storage<ChunkKey, ItemKey, Element>) -> Self::ChunkIdxSet {
-        self.0
-            .iter()
-            .filter_map(|x| storage.internal_idx_of(x))
-            .collect()
-    }
-
-    fn item_idxs(
-        &self,
-        _chunk_key: &ChunkKey,
-        chunk_storage: &ChunkStorage<ChunkKey, ItemKey, Element>,
-    ) -> Self::ItemIdxSet {
-        IdxRange(0..chunk_storage.len())
-    }
-
-    #[inline(always)]
-    fn test(&self, _element: &Element) -> bool {
-        true
-    }
+    common_chunk_idxs_impl!();
+    common_item_idxs_impl!();
+    common_test_impl!();
 }
 
 impl<Q, ChunkKey, ItemKey, Element> Query<ChunkKey, ItemKey, Element> for Chunks<Range<Q>>
 where
-    Q: ValidKey,
     Range<Q>: IntoIterator<Item = Q>,
-    ChunkKey: ValidKey + Borrow<Q>,
-    ItemKey: ValidKey,
+    Q: ValidKey + Borrow<ChunkKey>,
+    ChunkKey: BorrowedKey + ?Sized,
+    ChunkKey::Owned: ValidKey + Borrow<ChunkKey>,
+    ItemKey: BorrowedKey + ?Sized,
+    ItemKey::Owned: ValidKey,
     Element: Record<ChunkKey, ItemKey>,
 {
     type ChunkIdxSet = Bitset;
@@ -163,30 +141,22 @@ where
         self.0
             .clone()
             .into_iter()
-            .filter_map(|x| storage.internal_idx_of(&x))
+            .filter_map(|x| storage.internal_idx_of(x.borrow()))
             .collect()
     }
 
-    fn item_idxs(
-        &self,
-        _chunk_key: &ChunkKey,
-        chunk_storage: &ChunkStorage<ChunkKey, ItemKey, Element>,
-    ) -> Self::ItemIdxSet {
-        IdxRange(0..chunk_storage.len())
-    }
-
-    #[inline(always)]
-    fn test(&self, _element: &Element) -> bool {
-        true
-    }
+    common_item_idxs_impl!();
+    common_test_impl!();
 }
 
 impl<Q, ChunkKey, ItemKey, Element> Query<ChunkKey, ItemKey, Element> for Chunks<RangeInclusive<Q>>
 where
-    Q: ValidKey,
     RangeInclusive<Q>: IntoIterator<Item = Q>,
-    ChunkKey: ValidKey + Borrow<Q>,
-    ItemKey: ValidKey,
+    Q: ValidKey + Borrow<ChunkKey>,
+    ChunkKey: BorrowedKey + ?Sized,
+    ChunkKey::Owned: ValidKey + Borrow<ChunkKey>,
+    ItemKey: BorrowedKey + ?Sized,
+    ItemKey::Owned: ValidKey,
     Element: Record<ChunkKey, ItemKey>,
 {
     type ChunkIdxSet = Bitset;
@@ -196,22 +166,12 @@ where
         self.0
             .clone()
             .into_iter()
-            .filter_map(|x| storage.internal_idx_of(&x))
+            .filter_map(|x| storage.internal_idx_of(x.borrow()))
             .collect()
     }
 
-    fn item_idxs(
-        &self,
-        _chunk_key: &ChunkKey,
-        chunk_storage: &ChunkStorage<ChunkKey, ItemKey, Element>,
-    ) -> Self::ItemIdxSet {
-        IdxRange(0..chunk_storage.len())
-    }
-
-    #[inline(always)]
-    fn test(&self, _element: &Element) -> bool {
-        true
-    }
+    common_item_idxs_impl!();
+    common_test_impl!();
 }
 
 macro_rules! sized_array_query_impl {
@@ -219,9 +179,11 @@ macro_rules! sized_array_query_impl {
     #[cfg(feature="smallvec")]
     impl<Q, ChunkKey, ItemKey, Element> Query<ChunkKey, ItemKey, Element> for Chunks<smallvec::SmallVec<[Q;$n]>>
     where
-        Q: ValidKey,
-        ChunkKey: ValidKey + Borrow<Q>,
-        ItemKey: ValidKey,
+        Q: ValidKey + Borrow<ChunkKey>,
+        ChunkKey: BorrowedKey + ?Sized,
+        ChunkKey::Owned: ValidKey + Borrow<ChunkKey>,
+        ItemKey: BorrowedKey + ?Sized,
+        ItemKey::Owned: ValidKey,
         Element: Record<ChunkKey, ItemKey>,
     {
         type ChunkIdxSet = smallvec::SmallVec<[Bitfield;$n]>;
@@ -230,7 +192,7 @@ macro_rules! sized_array_query_impl {
         fn chunk_idxs(&self, storage: &Storage<ChunkKey, ItemKey, Element>) -> Self::ChunkIdxSet {
             let mut result = smallvec::SmallVec::new();
 
-            if self.0.len() > $n && self.0.len() > 100 {
+            if self.0.len() > $n && self.0.len() > 128 {
               #[cfg(feature ="log")]
               log::warn!("retriever: Chunks<SmallVec<[...;$n]>>: chunk list was much larger than expected; this is a possible cause of slow performance. Use ChunksIter instead.");
             }
@@ -238,7 +200,7 @@ macro_rules! sized_array_query_impl {
             result.resize(self.0.len(),Bitfield::default());
 
             for chunk_key in self.0.iter() {
-                if let Some(idx) = storage.internal_idx_of(chunk_key) {
+                if let Some(idx) = storage.internal_idx_of(chunk_key.borrow()) {
                     Bitset::set_in_slice(&mut result, idx).expect("capacity should always be sufficient");
                 }
             }
@@ -246,25 +208,17 @@ macro_rules! sized_array_query_impl {
             result
         }
 
-        fn item_idxs(
-            &self,
-            _chunk_key: &ChunkKey,
-            chunk_storage: &ChunkStorage<ChunkKey, ItemKey, Element>,
-        ) -> Self::ItemIdxSet {
-            IdxRange(0..chunk_storage.len())
-        }
-
-        #[inline(always)]
-        fn test(&self, _element: &Element) -> bool {
-            true
-        }
+        common_item_idxs_impl!();
+        common_test_impl!();
     }
 
     impl<Q, ChunkKey, ItemKey, Element> Query<ChunkKey, ItemKey, Element> for Chunks<[Q;$n]>
     where
-        Q: ValidKey,
-        ChunkKey: ValidKey + Borrow<Q>,
-        ItemKey: ValidKey,
+        Q: ValidKey + Borrow<ChunkKey>,
+        ChunkKey: BorrowedKey + ?Sized,
+        ChunkKey::Owned: ValidKey + Borrow<ChunkKey>,
+        ItemKey: BorrowedKey + ?Sized,
+        ItemKey::Owned: ValidKey,
         Element: Record<ChunkKey, ItemKey>,
     {
         #[cfg(feature="smallvec")]
@@ -282,7 +236,7 @@ macro_rules! sized_array_query_impl {
             result.resize($n,Bitfield::default());
 
             for chunk_key in self.0.iter() {
-                if let Some(idx) = storage.internal_idx_of(chunk_key) {
+                if let Some(idx) = storage.internal_idx_of(chunk_key.borrow()) {
                     Bitset::set_in_slice(&mut result, idx).expect("capacity should always be sufficient");
                 }
             }
@@ -290,18 +244,8 @@ macro_rules! sized_array_query_impl {
             result
         }
 
-        fn item_idxs(
-            &self,
-            _chunk_key: &ChunkKey,
-            chunk_storage: &ChunkStorage<ChunkKey, ItemKey, Element>,
-        ) -> Self::ItemIdxSet {
-            IdxRange(0..chunk_storage.len())
-        }
-
-        #[inline(always)]
-        fn test(&self, _element: &Element) -> bool {
-            true
-        }
+        common_item_idxs_impl!();
+        common_test_impl!();
     }
   }
 }
