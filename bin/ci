@@ -16,4 +16,4 @@ cargo test --benches
 cargo test --features="fnv"
 cargo test --features="fnv,smallvec"
 cargo test --features="smallvec"
-echo "\033[1;32mSUCCESS\033[0m"
+echo -e "\033[1;32mSUCCESS\033[0m"
