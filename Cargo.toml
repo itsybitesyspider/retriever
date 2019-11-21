@@ -4,8 +4,9 @@ version = "0.0.1"
 authors = ["Christopher Lane Hinson <clanehin@gmail.com>"]
 edition = "2018"
 readme = "README.md"
-repository = "https://www.github.com/clanehin/retriever"
-description = "Retriever is an embedded in-memory data store for rust applications, with support for multiple indexing."
+repository = "https://www.github.com/itsybitesyspider/retriever"
+description = "Retriever is an embedded in-memory data store for rust applications."
+homepage = "https://www.github.com/itsybitesyspider/retriever"
 license = "ISC OR GPL-3.0-or-later"
 
 [badges]
