@@ -331,6 +331,10 @@ mod test {
     use crate::types::reduction::Reduction;
     use std::borrow::Cow;
 
+    static_assertions::assert_impl_all!(Storage<u64,u64,(u64,u64,u64)>: Send, Sync);
+    static_assertions::assert_impl_all!(Reduction<u64, (u64,u64,u64), u64>: Send, Sync);
+    static_assertions::assert_impl_all!(SecondaryIndex<u64, (u64,u64,u64), std::collections::HashSet<u64>, u64>: Send, Sync);
+
     #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
     struct X(u64, u64);
 

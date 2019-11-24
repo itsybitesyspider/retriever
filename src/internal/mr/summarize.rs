@@ -3,9 +3,9 @@ use std::sync::Arc;
 
 #[derive(Clone)]
 pub(crate) struct SummaryRules<Element, Token, Summary> {
-    pub(crate) map: Arc<dyn Fn(&Element, &Token, usize) -> Option<Token> + 'static>,
-    pub(crate) contribute: Arc<dyn Fn(&Token, usize, &mut Summary) + 'static>,
-    pub(crate) uncontribute: Arc<dyn Fn(&Token, usize, &mut Summary) + 'static>,
+    pub(crate) map: Arc<dyn Fn(&Element, &Token, usize) -> Option<Token> + Send + Sync + 'static>,
+    pub(crate) contribute: Arc<dyn Fn(&Token, usize, &mut Summary) + Send + Sync + 'static>,
+    pub(crate) uncontribute: Arc<dyn Fn(&Token, usize, &mut Summary) + Send + Sync + 'static>,
 }
 
 /// Maintain a summary of an RVec by mutating a summary based on some token.

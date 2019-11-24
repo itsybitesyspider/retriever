@@ -159,7 +159,7 @@ where
         ItemKey: BorrowedKey + ?Sized,
         ItemKey::Owned: ValidKey,
         Element: Record<ChunkKey, ItemKey>,
-        F: Fn(&Element) -> Cow<IndexKeys> + 'static,
+        F: Fn(&Element) -> Cow<IndexKeys> + Clone + Send + Sync + 'static,
     {
         SecondaryIndex(Arc::new(RwLock::new(SecondaryIndexImpl {
             parent_id: storage.id(),
@@ -194,7 +194,7 @@ where
 {
     fn indexing_rules<F>(f: F) -> SummaryRules<Element, IndexKeys, ChunkSecondaryIndex<IndexKey>>
     where
-        F: Fn(&Element) -> Cow<IndexKeys> + 'static,
+        F: Fn(&Element) -> Cow<IndexKeys> + Clone + Send + Sync + 'static,
     {
         SummaryRules {
             map: Arc::new(move |element, old_index_keys, _internal_idx| {

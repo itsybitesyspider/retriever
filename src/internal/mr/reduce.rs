@@ -2,8 +2,8 @@ use crate::internal::mr::rvec::RVec;
 use std::sync::Arc;
 
 pub(crate) struct ReduceRules<Element, Summary> {
-    map: Arc<dyn Fn(&Element, &Summary, usize) -> Option<Summary> + 'static>,
-    reduce: Arc<dyn Fn(&[Summary], &Summary) -> Option<Summary> + 'static>,
+    map: Arc<dyn Fn(&Element, &Summary, usize) -> Option<Summary> + Send + Sync + 'static>,
+    reduce: Arc<dyn Fn(&[Summary], &Summary) -> Option<Summary> + Send + Sync + 'static>,
 }
 
 pub(crate) struct Reduce<Element, Summary> {
@@ -15,8 +15,8 @@ pub(crate) struct Reduce<Element, Summary> {
 impl<Element, Summary> ReduceRules<Element, Summary> {
     pub(crate) fn new<Map, Reduce>(map: Map, reduce: Reduce) -> ReduceRules<Element, Summary>
     where
-        Map: Fn(&Element, &Summary, usize) -> Option<Summary> + 'static,
-        Reduce: Fn(&[Summary], &Summary) -> Option<Summary> + 'static,
+        Map: Fn(&Element, &Summary, usize) -> Option<Summary> + Send + Sync + 'static,
+        Reduce: Fn(&[Summary], &Summary) -> Option<Summary> + Send + Sync + 'static,
     {
         ReduceRules {
             map: Arc::new(map),

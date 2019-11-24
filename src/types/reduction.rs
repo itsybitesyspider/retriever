@@ -67,8 +67,8 @@ where
         ItemKey: BorrowedKey + ?Sized,
         ItemKey::Owned: ValidKey,
         Element: Record<ChunkKey, ItemKey>,
-        Map: Fn(&Element, &Summary) -> Option<Summary> + Clone + 'static,
-        Fold: Fn(&[Summary], &Summary) -> Option<Summary> + Clone + 'static,
+        Map: Fn(&Element, &Summary) -> Option<Summary> + Clone + Send + Sync + 'static,
+        Fold: Fn(&[Summary], &Summary) -> Option<Summary> + Clone + Send + Sync + 'static,
     {
         let chunkwise_summaries = RVec::default();
         let reduction = Reduce::new(
@@ -91,8 +91,8 @@ where
 
     fn reduction_rules<Map, Reduce>(_map: Map, reduce: Reduce) -> ReduceRules<Summary, Summary>
     where
-        Map: Fn(&Element, &Summary) -> Option<Summary> + Clone + 'static,
-        Reduce: Fn(&[Summary], &Summary) -> Option<Summary> + Clone + 'static,
+        Map: Fn(&Element, &Summary) -> Option<Summary> + Clone + Send + Sync + 'static,
+        Reduce: Fn(&[Summary], &Summary) -> Option<Summary> + Clone + Send + Sync + 'static,
     {
         let map = reduce.clone();
         ReduceRules::new(move |ss, s, _| map(std::slice::from_ref(ss), s), reduce)
@@ -100,8 +100,8 @@ where
 
     fn chunkwise_rules<Map, Reduce>(map: Map, reduce: Reduce) -> ReduceRules<Element, Summary>
     where
-        Map: Fn(&Element, &Summary) -> Option<Summary> + Clone + 'static,
-        Reduce: Fn(&[Summary], &Summary) -> Option<Summary> + Clone + 'static,
+        Map: Fn(&Element, &Summary) -> Option<Summary> + Clone + Send + Sync + 'static,
+        Reduce: Fn(&[Summary], &Summary) -> Option<Summary> + Clone + Send + Sync + 'static,
     {
         ReduceRules::new(move |e, s, _| map(e, s), reduce)
     }
