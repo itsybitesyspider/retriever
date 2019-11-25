@@ -2,6 +2,7 @@
 
 
 [![Crates.io](https://img.shields.io/crates/v/retriever.svg)](https://crates.io/crates/retriever)
+[![Docs.rs](https://docs.rs/mio/badge.svg)](https://docs.rs/retriever/latest/)
 
 Retriever is an embedded, in-memory, document-oriented data store for rust applications.
 It stores ordinary rust data types in a similar manner as a NoSQL database.
@@ -307,4 +308,4 @@ I'm also interested in any suggestions that would help further simplify the code
   scale up to "every electron in the universe" if someone somehow ever legally acquires
   that tier of hardware.
 
-License: ISC OR GPL-3.0-or-later
+License: ISC OR AGPL-3.0-or-later
