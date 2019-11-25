@@ -2,6 +2,10 @@
 #![forbid(missing_docs)]
 #![warn(clippy::all)]
 
+//! [![Crates.io][crates-badge]][crates-url]
+//! [crates-badge]: https://img.shields.io/crates/v/retriever.svg
+//! [crates-url]: https://crates.io/crates/retriever
+//!
 //! Retriever is an embedded, in-memory, document-oriented data store for rust applications.
 //! It stores ordinary rust data types in a similar manner as a NoSQL database.
 //!
