@@ -33,10 +33,10 @@
 //! * Networking. Retriever is embedded in your application like any other crate. It doesn't
 //!   access anything over the network, nor can it be accessed over a network.
 //! * Novelty. I've tried to make Retriever as simple and obvious as possible, and I hope people
-//!   will be able to pick it up and use it from the provided examples with little learning curve.
+//!   will be able to pick it up and use it (and even contribute to it) with little learning curve.
 //!   Where there are a lot of type parameters, I try to demystify them with appropriate documentation.
 //!
-//! ## Getting started:
+//! ## Example
 //!
 //! ```
 //! use retriever::prelude::*;
@@ -54,7 +54,7 @@
 //!   parents: HashSet<Id<i32,String>>,
 //! }
 //!
-//! // Some convenience functions for describing puppies in source code
+//! // Some convenience functions for describing puppies
 //! impl Puppy {
 //!   fn new(name: &str, rescued_date: Date<Utc>) -> Puppy {
 //!     Puppy {
@@ -66,23 +66,25 @@
 //!     }
 //!   }
 //!
-//!   fn adopted(mut self, adopted_date: Date<Utc>) -> Puppy {
+//!   fn with_adopted_date(mut self, adopted_date: Date<Utc>) -> Puppy {
 //!     self.adopted_date = Some(adopted_date);
 //!     self
 //!   }
 //!
-//!   fn breeds(mut self, breeds: &[&str]) -> Puppy {
+//!   fn with_breeds(mut self, breeds: &[&str]) -> Puppy {
 //!     self.breed.extend(breeds.iter().map(|breed| String::from(*breed)));
 //!     self
 //!   }
 //!
-//!   fn parent(mut self, year: i32, name: &str) -> Puppy {
+//!   fn with_parent(mut self, year: i32, name: &str) -> Puppy {
 //!     self.parents.insert(ID.chunk(year).item(String::from(name)));
 //!     self
 //!   }
 //! }
 //!
 //! // We need to implement Record for our Puppy type.
+//! // We choose the year the puppy was rescued as the chunk key,
+//! // and the name of the puppy as the item key.
 //! // Because of this design, we can never have two puppies with same name
 //! // rescued in the same year. They would have the same Id.
 //! impl Record<i32,str> for Puppy {
@@ -98,30 +100,30 @@
 //! // Let's create a storage of puppies.
 //! let mut storage : Storage<i32,str,Puppy> = Storage::new();
 //!
-//! storage.add(
-//!   Puppy::new("Lucky", Utc.ymd(2019, 3, 27))
-//!     .adopted(Utc.ymd(2019, 9, 13))
-//!     .breeds(&["beagle"])
-//! );
-//!
 //! // Add some example puppies to work with
 //! storage.add(
+//!   Puppy::new("Lucky", Utc.ymd(2019, 3, 27))
+//!     .with_adopted_date(Utc.ymd(2019, 9, 13))
+//!     .with_breeds(&["beagle"])
+//! );
+//!
+//! storage.add(
 //!   Puppy::new("Spot", Utc.ymd(2019, 1, 9))
-//!     .breeds(&["labrador", "dalmation"])
-//!     .parent(2010, "Yeller")
+//!     .with_breeds(&["labrador", "dalmation"])  // See below for correct spelling.
+//!     .with_parent(2010, "Yeller")
 //! );
 //!
 //! storage.add(
 //!   Puppy::new("JoJo", Utc.ymd(2018, 9, 2))
-//!     .adopted(Utc.ymd(2019, 5, 1))
-//!     .breeds(&["labrador","shepherd"])
-//!     .parent(2010, "Yeller")
+//!     .with_adopted_date(Utc.ymd(2019, 5, 1))
+//!     .with_breeds(&["labrador","shepherd"])
+//!     .with_parent(2010, "Yeller")
 //! );
 //!
 //! storage.add(
 //!   Puppy::new("Yeller", Utc.ymd(2010, 8, 30))
-//!     .adopted(Utc.ymd(2013, 12, 24))
-//!     .breeds(&["labrador"])
+//!     .with_adopted_date(Utc.ymd(2013, 12, 24))
+//!     .with_breeds(&["labrador"])
 //! );
 //!
 //! // Get all puppies rescued in 2019:
@@ -188,7 +190,7 @@
 //!
 //! ## Comparison to ECS (entity-component-system) frameworks
 //!
-//! Retriever can be used as a servicable component store, because records that share the same keys
+//! Retriever can be used as a serviceable component store, because records that share the same keys
 //! are easy to cross-reference with each other. But Retriever is not designed specifically for
 //! game projects, and it tries to balance programmer comfort with reliability and performance.
 //!
@@ -218,10 +220,10 @@
 //!    secondary indexes by writing a single closure that maps records into zero or more secondary
 //!    keys.
 //! 7. If you want, create some reductions using `Reduction::new()`. Define reductions by writing
-//!    two closures: (1) A map from the record type to a summary type, and (2) a fold
-//!    of several summary objects into a single summary.
-//!    Use `Reduction::reduce()` to reduce your entire storage to a single summary object, or
-//!    `Reduction::reduce_chunk()` to reduce a single chunk to a single summary object.
+//!    two closures: (1) A map from the record to a summary, and (2) a fold
+//!    of several summaries into a single summary.
+//!    Use `Reduction::reduce()` to reduce an entire storage to a single summary, or
+//!    `Reduction::reduce_chunk()` to reduce a single chunk to a single summary.
 //!
 //! ### More about how to choose a good chunk key:
 //!
@@ -247,8 +249,9 @@
 //! range of use cases.
 //!
 //! A `Cow<T>` is usually either `Cow::Owned(T)` or `Cow::Borrowed(&T)`. The generic parameter refers
-//! to the borrowed form, so `Cow<str>` is either `Cow::Owned<String>` or `Cow::Borrowed<&str>`.
-//! Whenever you see a `ChunkKey`, `ItemKey`, or `IndexKey`, these keys follow the same convention.
+//! to the borrowed form, so `Cow<str>` is either `Cow::Owned(String)` or `Cow::Borrowed(&str)`.
+//! Whenever you see a generic parameter like `ChunkKey`, `ItemKey`, or `IndexKey`,
+//! these keys should also be borrowed forms.
 //!
 //! These are good:
 //!
@@ -280,9 +283,9 @@
 //!
 //! ## How to Help
 //!
-//! At this stage, bug reports and questions about any unclear documentation are highly valuable.
-//! I consider it appropriate to open a ticket just for technical support.
-//! I'm also interested in any suggestions that would help further simplify the codebase.
+//! At this stage, any bug reports or questions about unclear documentation are highly valued.
+//! Please be patient if I'm not able to respond immediately.
+//! I'm also interested in any suggestions that would help further simplify the code base.
 //!
 //! ## To Do: (I want these features, but they aren't yet implemented)
 //! * Parallelism (will probably be implemented behind a rayon feature flag)
@@ -292,11 +295,11 @@
 //! * External mutable iterators (currently only internal iteration is supported for modify)
 //! * More small vector optimization in some places where I expect it to matter
 //! * Need rigorous testing for space usage (currently no effort is made to shrink storage
-//!   OR index vectors, this is priority #1 right now)
-//! * Lazy item key indexing is a potential performance win.
-//! * Convolutional reductions mapping zero or more source chunks onto one destination chunk.
+//!   or index vectors, this is probably priority #1 right now)
+//! * Lazy item key indexing or opt-out for item keys is a potential performance win.
+//! * Convolutional reductions summarizing zero or more source chunks.
 //! * Idea: data elements could be stored in a [persistent data structure](https://en.wikipedia.org/wiki/Persistent_data_structure)
-//!   which might make it possible to iterate over elements while seperately mutating them. This idea needs research.
+//!   which might make it possible to iterate over elements while separately mutating them. This idea needs research.
 //! * Theoretically, I expect retriever's performance to break down beyond about
 //!   16 million chunks of 16 million elements, and secondary indexes are simply not scalable
 //!   for low-cardinality data. I would eventually like retriever to
