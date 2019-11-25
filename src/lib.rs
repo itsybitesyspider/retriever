@@ -4,7 +4,9 @@
 
 //!
 //! [![Crates.io](https://img.shields.io/crates/v/retriever.svg)](https://crates.io/crates/retriever)
-//! [![Docs.rs](https://docs.rs/mio/badge.svg)](https://docs.rs/retriever/latest/)
+//! [![Docs.rs](https://docs.rs/retriever/badge.svg)](https://docs.rs/retriever/latest/)
+//!
+//! # What is it?
 //!
 //! Retriever is an embedded, in-memory, document-oriented data store for rust applications.
 //! It stores ordinary rust data types in a similar manner as a NoSQL database.
@@ -39,6 +41,18 @@
 //! * Novelty. I've tried to make Retriever as simple and obvious as possible, and I hope people
 //!   will be able to pick it up and use it (and even contribute to it) with little learning curve.
 //!   Where there are a lot of type parameters, I try to demystify them with appropriate documentation.
+//!
+//! ## Quick Docs:
+//!
+//! Quick links to key API documentation:
+//!
+//! [Storage](https://docs.rs/retriever/latest/retriever/types/storage/struct.Storage.html)
+//! |
+//! [Query](https://docs.rs/retriever/latest/retriever/traits/query/trait.Query.html)
+//! |
+//! [SecondaryIndex](https://docs.rs/retriever/latest/retriever/queries/secondary_index/struct.SecondaryIndex.html)
+//! |
+//! [Reduction](https://docs.rs/retriever/latest/retriever/types/reduction/struct.Reduction.html)
 //!
 //! ## Example
 //!
