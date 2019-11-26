@@ -14,10 +14,11 @@
 //! Retriever is ideal when you need to index a collection by multiple properties,
 //! you need a variety of relations between elements in a collection, or
 //! or you need to maintain summary statistics about a collection.
+//! 
+//! ![Image of cute dog.](https://itsybitesyspider.github.io/retriever/doc/nami.jpg)
 //!
-//! ![Callie, a golden retriever puppy.](./Callie_the_golden_retriever_puppy.jpg)
-//! (Image of Callie, a golden retriever puppy, by Wikimedia Commons user MichaelMcPhee.)
-//!
+//! (Image of [Nami](https://twitter.com/nami_num_nums), a project admirer.)
+//! 
 //! ## Features:
 //!
 //! * Document-oriented storage and retrieval.
