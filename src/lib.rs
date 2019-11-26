@@ -15,10 +15,6 @@
 //! you need a variety of relations between elements in a collection, or
 //! or you need to maintain summary statistics about a collection.
 //!
-//! ![Image dog waiting in front of a ball and throw stick.](./doc/nami.jpg)
-//! 
-//! (Image of [Nami](https://twitter.com/nami_num_nums), a project admirer.)
-//!
 //! ## Features:
 //!
 //! * Document-oriented storage and retrieval.
