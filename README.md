@@ -13,8 +13,9 @@ Retriever is ideal when you need to index a collection by multiple properties,
 you need a variety of relations between elements in a collection, or
 or you need to maintain summary statistics about a collection.
 
-![Callie, a golden retriever puppy.](./Callie_the_golden_retriever_puppy.jpg)
-(Image of Callie, a golden retriever puppy, by Wikimedia Commons user MichaelMcPhee.)
+![Image dog waiting in front of a ball and throw stick.](./doc/nami.jpg)
+
+(Image of [Nami](https://twitter.com/nami_num_nums), a project admirer.)
 
 ### Features:
 
