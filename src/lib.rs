@@ -15,7 +15,7 @@
 //! you need a variety of relations between elements in a collection, or
 //! or you need to maintain summary statistics about a collection.
 //! 
-//! ![Image of cute dog.](https://itsybitesyspider.github.io/retriever/doc/nami.jpg)
+//! ![Image of cute dog.](https://raw.githubusercontent.com/itsybitesyspider/retriever/master/doc/nami.jpg)
 //!
 //! (Image of [Nami](https://twitter.com/nami_num_nums), a project admirer.)
 //! 
