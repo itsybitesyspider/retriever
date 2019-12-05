@@ -3,7 +3,7 @@
 /// In this example, count the number of spacecraft with people aboard using a `Reduction`.
 ///
 /// When recalculating the count over a large number of records, retriever caches previous
-/// results and only recalculate blocks of records that have changed.
+/// results and only recalculates blocks of records that have changed.
 use retriever::prelude::*;
 use std::borrow::Cow;
 
