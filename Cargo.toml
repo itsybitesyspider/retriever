@@ -5,16 +5,17 @@ authors = ["Christopher Lane Hinson <clanehin@gmail.com>"]
 edition = "2018"
 readme = "README.md"
 repository = "https://www.github.com/itsybitesyspider/retriever"
-description = "Retriever is an embedded in-memory data store for rust applications."
+description = "Retriever stores ordinary rust data types in a similar manner as a NoSQL database. It supports relationships (including circular relationships) among elements, multiple-indexing, and map-reduce-like summaries."
 homepage = "https://www.github.com/itsybitesyspider/retriever"
 license = "ISC OR AGPL-3.0-or-later"
 
 [badges]
 
+
 [dependencies]
 fnv = { version = "1.0.6", optional = true }
 log = { version = "0.4", optional = true }
-smallvec = { version = "1.0", optional = true }
+smallvec = { version = "1.1", optional = true }
 
 [dev-dependencies]
 chrono = "0.4"

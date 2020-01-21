@@ -3,6 +3,8 @@ use crate::idxsets::intersection::Intersection;
 use crate::internal::mr::rvec::RVec;
 use crate::internal::mr::summarize::{Summarize, SummaryRules};
 use crate::traits::idxset::IdxSet;
+use crate::traits::memory_usage::MemoryUsage;
+use crate::traits::memory_usage::MemoryUser;
 use crate::traits::query::Query;
 use crate::traits::record::Record;
 use crate::traits::valid_key::{BorrowedKey, ValidKey};
@@ -506,5 +508,75 @@ where
 
     fn iter_keys(&'a self) -> Self::KeySetIter {
         self.iter().map(|t: &'a T| Cow::Borrowed(t.borrow()))
+    }
+}
+
+impl<IndexKey> MemoryUser for ChunkSecondaryIndex<IndexKey>
+where
+    IndexKey: BorrowedKey + ?Sized,
+    IndexKey::Owned: ValidKey,
+{
+    fn memory_usage(&self) -> MemoryUsage {
+        let mut result = self.reverse_index.memory_usage();
+
+        for bs in self.reverse_index.values() {
+            result = MemoryUsage::merge(result, bs.memory_usage());
+        }
+
+        result
+    }
+
+    fn shrink_with<F: Fn(&MemoryUsage) -> Option<usize>>(&mut self, f: F) {
+        self.reverse_index.shrink_with(&f);
+
+        for bs in self.reverse_index.values_mut() {
+            bs.shrink_with(&f);
+        }
+    }
+}
+
+impl<ChunkKey, Element, IndexKeys, IndexKey> MemoryUser
+    for SecondaryIndexImpl<ChunkKey, Element, IndexKeys, IndexKey>
+where
+    ChunkKey: BorrowedKey + ?Sized,
+    ChunkKey::Owned: ValidKey,
+    IndexKey: BorrowedKey + ?Sized,
+    IndexKey::Owned: ValidKey,
+    for<'k> IndexKeys: Clone + Debug + Default + Eq + KeySet<'k, IndexKey>,
+{
+    fn memory_usage(&self) -> MemoryUsage {
+        let mut result = self.gc_chunk_list.memory_usage();
+
+        for s in self.index.values() {
+            result = MemoryUsage::merge(result, s.memory_usage());
+        }
+
+        result
+    }
+
+    fn shrink_with<F: Fn(&MemoryUsage) -> Option<usize>>(&mut self, f: F) {
+        self.gc_chunk_list.shrink_with(&f);
+
+        for i in self.index.values_mut() {
+            i.shrink_with(&f);
+        }
+    }
+}
+
+impl<ChunkKey, Element, IndexKeys, IndexKey> MemoryUser
+    for SecondaryIndex<ChunkKey, Element, IndexKeys, IndexKey>
+where
+    ChunkKey: BorrowedKey + ?Sized,
+    ChunkKey::Owned: ValidKey,
+    IndexKey: BorrowedKey + ?Sized,
+    IndexKey::Owned: ValidKey,
+    for<'k> IndexKeys: Clone + Debug + Default + Eq + KeySet<'k, IndexKey>,
+{
+    fn memory_usage(&self) -> MemoryUsage {
+        self.0.read().unwrap().memory_usage()
+    }
+
+    fn shrink_with<F: Fn(&MemoryUsage) -> Option<usize>>(&mut self, f: F) {
+        self.0.write().unwrap().shrink_with(f)
     }
 }

@@ -1,6 +1,7 @@
 #[cfg(feature = "log")]
 use log::warn;
 
+use crate::traits::memory_usage::{MemoryUsage, MemoryUser};
 use std::ops::{Index, IndexMut};
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
@@ -8,19 +9,17 @@ use std::sync::atomic::Ordering;
 static ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 const SCALE: usize = 0x10;
-const STRIDE_0: usize = 0x10;
-const STRIDE_1: usize = STRIDE_0 * SCALE;
-const STRIDE_2: usize = STRIDE_1 * SCALE;
-const STRIDE_3: usize = STRIDE_2 * SCALE;
-const STRIDE_4: usize = STRIDE_3 * SCALE;
+const STRIDE: [usize; 5] = [
+    SCALE,
+    SCALE * SCALE,
+    SCALE * SCALE * SCALE,
+    SCALE * SCALE * SCALE * SCALE,
+    SCALE * SCALE * SCALE * SCALE * SCALE,
+];
 
 struct ChangedVec {
     count: u128,
-    counts_0: Vec<u128>,
-    counts_1: Vec<u128>,
-    counts_2: Vec<u128>,
-    counts_3: Vec<u128>,
-    counts_4: Vec<u128>,
+    counts: [Vec<u128>; 5],
 }
 
 pub(crate) struct RVec<T> {
@@ -45,30 +44,19 @@ impl<T> RVec<T> {
 
     /// Touch an element of this RVec, but index.
     pub(crate) fn touch(&mut self, i: usize) -> &mut Self {
-        if i / STRIDE_0 + 1 > self.changed_vec.counts_0.len() {
-            self.changed_vec
-                .counts_0
-                .resize(self.changed_vec.counts_0.len().max(i / STRIDE_0 + 1), 0);
-            self.changed_vec
-                .counts_1
-                .resize(self.changed_vec.counts_1.len().max(i / STRIDE_1 + 1), 0);
-            self.changed_vec
-                .counts_2
-                .resize(self.changed_vec.counts_2.len().max(i / STRIDE_2 + 1), 0);
-            self.changed_vec
-                .counts_3
-                .resize(self.changed_vec.counts_3.len().max(i / STRIDE_3 + 1), 0);
-            self.changed_vec
-                .counts_4
-                .resize(self.changed_vec.counts_4.len().max(i / STRIDE_4 + 1), 0);
+        if i / STRIDE[0] + 1 > self.changed_vec.counts[0].len() {
+            for (j, stride) in STRIDE.iter().enumerate() {
+                self.changed_vec.counts[j]
+                    .resize(self.changed_vec.counts[j].len().max(i / stride + 1), 0);
+            }
         }
 
         self.changed_vec.count += 1;
-        self.changed_vec.counts_0[i / STRIDE_0] = self.changed_vec.count;
-        self.changed_vec.counts_1[i / STRIDE_1] = self.changed_vec.count;
-        self.changed_vec.counts_2[i / STRIDE_2] = self.changed_vec.count;
-        self.changed_vec.counts_3[i / STRIDE_3] = self.changed_vec.count;
-        self.changed_vec.counts_4[i / STRIDE_4] = self.changed_vec.count;
+        self.changed_vec.counts[0][i / STRIDE[0]] = self.changed_vec.count;
+        self.changed_vec.counts[1][i / STRIDE[1]] = self.changed_vec.count;
+        self.changed_vec.counts[2][i / STRIDE[2]] = self.changed_vec.count;
+        self.changed_vec.counts[3][i / STRIDE[3]] = self.changed_vec.count;
+        self.changed_vec.counts[4][i / STRIDE[4]] = self.changed_vec.count;
 
         self
     }
@@ -77,11 +65,12 @@ impl<T> RVec<T> {
     where
         T: Default,
     {
-        for i in self.data.len().min(new_size)..self.data.len().max(new_size) {
-            self.touch(i);
-        }
+        resize_to_fit(&mut self.changed_vec.counts, new_size);
 
         self.data.resize_with(new_size, Default::default);
+        for i in self.data.len()..new_size {
+            self.touch(i);
+        }
 
         self
     }
@@ -151,20 +140,28 @@ impl<T> RVec<T> {
         let mut needs_recalc = Vec::new();
         let mut i = 0;
 
+        // I suspect this is a strong candidate for futher optimization.
+        // Should consider a stack of nested loops to avoid redundant checks of stride counts.
         while i < source.data.len() {
-            if source.changed_vec.counts_4[i / STRIDE_4] <= expected_count {
-                i = ((i / STRIDE_4) + 1) * STRIDE_4;
-            } else if source.changed_vec.counts_3[i / STRIDE_3] <= expected_count {
-                i = ((i / STRIDE_3) + 1) * STRIDE_3;
-            } else if source.changed_vec.counts_2[i / STRIDE_2] <= expected_count {
-                i = ((i / STRIDE_2) + 1) * STRIDE_2;
-            } else if source.changed_vec.counts_1[i / STRIDE_1] <= expected_count {
-                i = ((i / STRIDE_1) + 1) * STRIDE_1;
-            } else if source.changed_vec.counts_0[i / STRIDE_0] > expected_count {
-                needs_recalc.push(i / group_size);
-                i = ((i / group_size) + 1) * group_size;
+            if source.changed_vec.counts[4][i / STRIDE[4]] <= expected_count {
+                i = ((i / STRIDE[4]) + 1) * STRIDE[4];
+            } else if source.changed_vec.counts[3][i / STRIDE[3]] <= expected_count {
+                i = ((i / STRIDE[3]) + 1) * STRIDE[3];
+            } else if source.changed_vec.counts[2][i / STRIDE[2]] <= expected_count {
+                i = ((i / STRIDE[2]) + 1) * STRIDE[2];
+            } else if source.changed_vec.counts[1][i / STRIDE[1]] <= expected_count {
+                i = ((i / STRIDE[1]) + 1) * STRIDE[1];
+            } else if source.changed_vec.counts[0][i / STRIDE[0]] > expected_count {
+                let stop = ((i / STRIDE[0]) + 1) * STRIDE[0];
+                while i < stop {
+                    needs_recalc.push(i / group_size);
+                    i = ((i / group_size) + 1) * group_size;
+                }
             } else {
-                i += 1;
+                let stop = ((i / STRIDE[0]) + 1) * STRIDE[0];
+                while i < stop {
+                    i += 1;
+                }
             }
         }
 
@@ -208,36 +205,27 @@ impl<T> IndexMut<usize> for RVec<T> {
 
 impl<T> From<Vec<T>> for RVec<T> {
     fn from(data: Vec<T>) -> Self {
-        let mut counts_0 = Vec::new();
-        counts_0.resize(data.len() / STRIDE_0 + 1, 0);
-
-        let mut counts_1 = Vec::new();
-        counts_1.resize(data.len() / STRIDE_1 + 1, 0);
-
-        let mut counts_2 = Vec::new();
-        counts_2.resize(data.len() / STRIDE_2 + 1, 0);
-
-        let mut counts_3 = Vec::new();
-        counts_3.resize(data.len() / STRIDE_3 + 1, 0);
-
-        let mut counts_4 = Vec::new();
-        counts_4.resize(data.len() / STRIDE_4 + 1, 0);
+        let mut counts: [Vec<u128>; 5] =
+            [Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new()];
+        resize_to_fit(&mut counts, data.len());
 
         RVec {
             id: ID_COUNTER.fetch_add(1, Ordering::Relaxed),
             data,
             parent_count: 0,
             parent_id: None,
-            changed_vec: ChangedVec {
-                count: 0,
-                counts_0,
-                counts_1,
-                counts_2,
-                counts_3,
-                counts_4,
-            },
+            changed_vec: ChangedVec { count: 0, counts },
         }
     }
+}
+
+/// Resize the hierarchical change count vectors to fit the size of the data.
+fn resize_to_fit(counts: &mut [Vec<u128>; 5], len: usize) {
+    counts[0].resize(len / STRIDE[0] + 1, 0);
+    counts[1].resize(len / STRIDE[1] + 1, 0);
+    counts[2].resize(len / STRIDE[2] + 1, 0);
+    counts[3].resize(len / STRIDE[3] + 1, 0);
+    counts[4].resize(len / STRIDE[4] + 1, 0);
 }
 
 impl<T> Into<Vec<T>> for RVec<T> {
@@ -266,6 +254,40 @@ where
         }
 
         result
+    }
+}
+
+impl MemoryUser for ChangedVec {
+    fn memory_usage(&self) -> MemoryUsage {
+        MemoryUsage {
+            size_of: Some(std::mem::size_of::<u128>()),
+            len: self.counts.iter().map(|v| v.len()).sum::<usize>(),
+            capacity: self.counts.iter().map(|v| v.capacity()).sum::<usize>(),
+        }
+    }
+
+    fn shrink_with<F: Fn(&MemoryUsage) -> Option<usize>>(&mut self, f: F) {
+        for count in self.counts.iter_mut() {
+            count.shrink_with(&f);
+        }
+    }
+}
+
+impl<T> MemoryUser for RVec<T> {
+    fn memory_usage(&self) -> MemoryUsage {
+        let changed_vec = self.changed_vec.memory_usage();
+        let data = self.data.memory_usage();
+
+        MemoryUsage {
+            size_of: None,
+            len: changed_vec.len + data.len,
+            capacity: changed_vec.capacity + data.capacity,
+        }
+    }
+
+    fn shrink_with<F: Fn(&MemoryUsage) -> Option<usize>>(&mut self, f: F) {
+        self.changed_vec.shrink_with(&f);
+        self.data.shrink_with(&f);
     }
 }
 

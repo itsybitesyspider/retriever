@@ -3,6 +3,7 @@ use super::id::Id;
 use crate::internal::hasher::HasherImpl;
 use crate::internal::mr::rvec::RVec;
 use crate::traits::idxset::IdxSet;
+use crate::traits::memory_usage::{MemoryUsage, MemoryUser};
 use crate::traits::query::Query;
 use crate::traits::record::Record;
 use crate::traits::valid_key::{BorrowedKey, ValidKey};
@@ -232,5 +233,22 @@ where
 {
     fn into(self) -> Vec<Element> {
         self.data.into()
+    }
+}
+
+impl<ChunkKey, ItemKey, Element> MemoryUser for ChunkStorage<ChunkKey, ItemKey, Element>
+where
+    ChunkKey: BorrowedKey + ?Sized,
+    ChunkKey::Owned: ValidKey,
+    ItemKey: BorrowedKey + ?Sized,
+    ItemKey::Owned: ValidKey,
+{
+    fn memory_usage(&self) -> MemoryUsage {
+        MemoryUsage::merge(self.index.memory_usage(), self.data.memory_usage())
+    }
+
+    fn shrink_with<F: Fn(&MemoryUsage) -> Option<usize>>(&mut self, f: F) {
+        self.index.shrink_with(&f);
+        self.data.shrink_with(&f);
     }
 }

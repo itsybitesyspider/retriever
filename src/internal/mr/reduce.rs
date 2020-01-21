@@ -1,4 +1,6 @@
 use crate::internal::mr::rvec::RVec;
+use crate::traits::memory_usage::MemoryUsage;
+use crate::traits::memory_usage::MemoryUser;
 use std::sync::Arc;
 
 pub(crate) struct ReduceRules<Element, Summary> {
@@ -8,6 +10,10 @@ pub(crate) struct ReduceRules<Element, Summary> {
 
 pub(crate) struct Reduce<Element, Summary> {
     rules: ReduceRules<Element, Summary>,
+    // This is a reduction stack. It looks like:
+    // [[1], [..group_size], [..group_size^2], [..group_size^3], [..group_size^4], ..]
+    // Where [..X] means "A vector of length X".
+    // Used for exponential collapse the reduction vector into a single element.
     reductions: Vec<RVec<Summary>>,
     group_size: usize,
 }
@@ -217,5 +223,25 @@ mod test {
 
         sum.update(&numbers);
         assert_eq!(sum.peek(), Some(&36));
+    }
+}
+
+impl<Element, Summary> MemoryUser for Reduce<Element, Summary> {
+    fn memory_usage(&self) -> MemoryUsage {
+        let mut result = self.reductions.memory_usage();
+
+        for r in self.reductions.iter() {
+            result = MemoryUsage::merge(result, r.memory_usage());
+        }
+
+        result
+    }
+
+    fn shrink_with<F: Fn(&MemoryUsage) -> Option<usize>>(&mut self, f: F) {
+        self.reductions.shrink_with(&f);
+
+        for r in self.reductions.iter_mut() {
+            r.shrink_with(&f);
+        }
     }
 }

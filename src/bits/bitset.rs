@@ -1,5 +1,6 @@
 use super::bitfield::*;
 use crate::traits::idxset::IdxSet;
+use crate::traits::memory_usage::{MemoryUsage, MemoryUser};
 use std::iter::Filter;
 use std::iter::FromIterator;
 use std::sync::Arc;
@@ -256,6 +257,30 @@ where
 
     fn intersect(&self, bits: &Bitfield) -> Bitfield {
         Bitset::intersect_in_slice(self, bits)
+    }
+}
+
+impl MemoryUser for Bitset {
+    fn memory_usage(&self) -> MemoryUsage {
+        let len: usize = self
+            .bits
+            .iter()
+            .filter(|bitfield| bitfield.ones() > 0)
+            .count();
+
+        MemoryUsage {
+            size_of: Some(std::mem::size_of::<Bitfield>()),
+            len,
+            capacity: self.bits.capacity(),
+        }
+    }
+
+    fn shrink_with<F: Fn(&MemoryUsage) -> Option<usize>>(&mut self, f: F) {
+        Arc::make_mut(&mut self.bits).retain(|bitfield| bitfield.ones() > 0);
+
+        if let Some(_min_capacity) = f(&self.memory_usage()) {
+            Arc::make_mut(&mut self.bits).shrink_to_fit();
+        }
     }
 }
 

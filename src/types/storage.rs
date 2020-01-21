@@ -3,6 +3,7 @@ use super::entry::Entry;
 use crate::internal::hasher::HasherImpl;
 use crate::internal::mr::rvec::RVec;
 use crate::traits::idxset::IdxSet;
+use crate::traits::memory_usage::{MemoryUsage, MemoryUser};
 use crate::traits::query::Query;
 use crate::traits::record::Record;
 use crate::traits::valid_key::{BorrowedKey, ValidKey};
@@ -797,5 +798,41 @@ where
 {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<ChunkKey, ItemKey, Element> MemoryUser for Storage<ChunkKey, ItemKey, Element>
+where
+    ChunkKey: BorrowedKey + ?Sized,
+    ChunkKey::Owned: ValidKey,
+    ItemKey: BorrowedKey + ?Sized,
+    ItemKey::Owned: ValidKey,
+{
+    fn memory_usage(&self) -> MemoryUsage {
+        let mut result = MemoryUsage {
+            size_of: None,
+            len: 0,
+            capacity: 0,
+        };
+
+        result = MemoryUsage::merge(result, self.index.memory_usage());
+        result = MemoryUsage::merge(result, self.chunks.memory_usage());
+
+        for chunk in self.chunks.iter() {
+            result = MemoryUsage::merge(result, chunk.memory_usage());
+        }
+
+        result
+    }
+
+    fn shrink_with<F: Fn(&MemoryUsage) -> Option<usize>>(&mut self, f: F) {
+        for i in 0..self.chunks.len() {
+            if let Some(_min_capacity) = f(&self.chunks[i].memory_usage()) {
+                self.chunks[i].shrink_with(&f);
+            }
+        }
+
+        self.index.shrink_with(&f);
+        self.chunks.shrink_with(&f);
     }
 }

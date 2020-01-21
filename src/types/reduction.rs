@@ -1,5 +1,7 @@
 use crate::internal::mr::reduce::*;
 use crate::internal::mr::rvec::RVec;
+use crate::traits::memory_usage::MemoryUsage;
+use crate::traits::memory_usage::MemoryUser;
 use crate::traits::record::Record;
 use crate::traits::valid_key::{BorrowedKey, ValidKey};
 use crate::types::storage::Storage;
@@ -311,5 +313,39 @@ where
             .entry(chunk_key.to_owned())
             .or_insert_with(|| Reduce::new(internal_storage, group_size, rules.clone()))
             .update(&internal_storage)
+    }
+}
+
+impl<ChunkKey, Element, Summary> MemoryUser for Reduction<ChunkKey, Element, Summary>
+where
+    ChunkKey: BorrowedKey + ?Sized,
+    ChunkKey::Owned: ValidKey,
+{
+    fn memory_usage(&self) -> MemoryUsage {
+        let mut result = MemoryUsage {
+            size_of: None,
+            len: 0,
+            capacity: 0,
+        };
+
+        result = MemoryUsage::merge(result, self.gc_chunk_list.memory_usage());
+        result = MemoryUsage::merge(result, self.chunkwise_summaries.memory_usage());
+        result = MemoryUsage::merge(result, self.reduction.memory_usage());
+
+        for reduction in self.chunkwise_reductions.values() {
+            result = MemoryUsage::merge(result, reduction.memory_usage());
+        }
+
+        result
+    }
+
+    fn shrink_with<F: Fn(&MemoryUsage) -> Option<usize>>(&mut self, f: F) {
+        self.gc_chunk_list.shrink_with(&f);
+        self.chunkwise_summaries.shrink_with(&f);
+        self.reduction.shrink_with(&f);
+
+        for reduction in self.chunkwise_reductions.values_mut() {
+            reduction.shrink_with(&f);
+        }
     }
 }

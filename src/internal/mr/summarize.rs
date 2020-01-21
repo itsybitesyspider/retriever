@@ -1,4 +1,5 @@
 use crate::internal::mr::rvec::RVec;
+use crate::traits::memory_usage::{MemoryUsage, MemoryUser};
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -67,6 +68,19 @@ where
 
     pub(crate) fn peek(&self) -> &Summary {
         &self.summary
+    }
+}
+
+impl<Element, Token, Summary> MemoryUser for Summarize<Element, Token, Summary>
+where
+    Token: Default + Eq,
+{
+    fn memory_usage(&self) -> MemoryUsage {
+        self.tokens.memory_usage()
+    }
+
+    fn shrink_with<F: Fn(&MemoryUsage) -> Option<usize>>(&mut self, f: F) {
+        self.tokens.shrink_with(f);
     }
 }
 

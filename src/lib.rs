@@ -8,12 +8,9 @@
 //!
 //! # What is it?
 //!
-//! Retriever is an embedded, in-memory, document-oriented data store for rust applications.
-//! It stores ordinary rust data types in a similar manner as a NoSQL database.
-//!
-//! Retriever is ideal when you need to index a collection by multiple properties,
-//! you need a variety of relations between elements in a collection, or
-//! or you need to maintain summary statistics about a collection.
+//! Retriever stores ordinary rust data types in a similar manner as a NoSQL database. It supports
+//! relationships (including circular relationships) among elements, multiple-indexing, and
+//! map-reduce-like summaries.
 //!
 //! ![Image of cute dog.](https://raw.githubusercontent.com/itsybitesyspider/retriever/master/doc/nami.jpg)
 //!
@@ -26,8 +23,8 @@
 //! * Create indexes at will and drop them when you no longer need them.
 //! * Lazy indexing. Pay re-indexing costs when you query the index, not before.
 //! * Choice of borrowed or computed (dynamic) keys (using [Cow](https://doc.rust-lang.org/std/borrow/enum.Cow.html)).
-//! * Map-reduce-style operations, if you want them.
-//! * Chunking: all records belonging to the same chunk are stored together in the same Vec.
+//! * Map-reduce-style summaries, if you want them.
+//! * Chunking: (optional) all records belonging to the same chunk are stored together in the same Vec.
 //! * 100% safe Rust with no default dependencies.
 //! * Over 60 tests, doc-tests and benchmarks (need more)
 //! * Lots of full-featured examples to get started!
