@@ -50,7 +50,64 @@ Quick links to key API documentation:
 |
 [Reduction](https://docs.rs/retriever/latest/retriever/types/reduction/struct.Reduction.html)
 
-### Example
+### Basic Example
+
+In this example, we create a Storage of puppies from old American comic strips.
+
+```rust
+use retriever::prelude::*;
+use std::borrow::Cow;
+
+struct Puppy {
+  name: String,
+  age: u64,
+}
+
+impl Record<(),str> for Puppy {
+  fn chunk_key(&self) -> Cow<()> {
+    Cow::Owned(())
+  }
+
+  fn item_key(&self) -> Cow<str> {
+    Cow::Borrowed(&self.name)
+  }
+}
+
+let mut storage : Storage<(),str,Puppy> = Storage::new();
+
+storage.add(Puppy {
+  name: "Snoopy".to_string(),
+  age: 70
+});
+
+storage.add(Puppy {
+  name: "Odie".to_string(),
+  age: 52,
+});
+
+storage.add(Puppy {
+  name: "Marmaduke".to_string(),
+  age: 66
+});
+
+assert_eq!(
+  Some(52),
+  storage.get(&ID.item("Odie")).map(|puppy| puppy.age)
+);
+
+assert_eq!(
+  3,
+  storage.query(Everything).count()
+);
+
+assert_eq!(
+  2,
+  storage.query(Everything.filter(|puppy: &Puppy| puppy.age > 60)).count()
+);
+
+```
+
+### Extended Example
 
 ```rust
 use retriever::prelude::*;
