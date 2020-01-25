@@ -52,17 +52,21 @@ Quick links to key API documentation:
 
 ### Basic Example
 
-In this example, we create a Storage of puppies from old American comic strips.
+In this example, perform some basic operations on puppies from old American comic strips.
 
 ```rust
 use retriever::prelude::*;
 use std::borrow::Cow;
 
+// Each Puppy has a name and age.
 struct Puppy {
   name: String,
   age: u64,
 }
 
+// Use the Puppy's name as it's key.
+// Using () as the ChunkKey effectively disables chunking;
+// this is recommended if you aren't sure what chunk key to use.
 impl Record<(),str> for Puppy {
   fn chunk_key(&self) -> Cow<()> {
     Cow::Owned(())
@@ -90,19 +94,87 @@ storage.add(Puppy {
   age: 66
 });
 
+// Look up the age of a Puppy
 assert_eq!(
-  Some(52),
-  storage.get(&ID.item("Odie")).map(|puppy| puppy.age)
+  52,
+  storage.get(&ID.item("Odie")).unwrap().age
 );
 
-assert_eq!(
-  3,
-  storage.query(Everything).count()
-);
-
+// Count the number of puppies older than 60 years.
 assert_eq!(
   2,
   storage.query(Everything.filter(|puppy: &Puppy| puppy.age > 60)).count()
+);
+
+```
+
+### Summarizing a storage with a Reduction
+
+In this example, each puppy has some number of bones, tennis balls, and squeaks.
+Use a `Reduction` to maintain a total count of these items. A `Reduction` can efficiently
+recalculate these totals whenever the `Storage` changes.
+
+```rust
+use retriever::prelude::*;
+use std::borrow::Cow;
+
+struct Puppy {
+  name: String,
+  toys: Toys,
+}
+
+#[derive(Clone,Copy,Debug,Default,Eq,PartialEq)]
+struct Toys {
+  bones: u64,
+  tennis_balls: u64,
+  squeaks: u64,
+}
+
+impl Record<(),str> for Puppy {
+  fn chunk_key(&self) -> Cow<()> {
+    Cow::Owned(())
+  }
+
+  fn item_key(&self) -> Cow<str> {
+    Cow::Borrowed(&self.name)
+  }
+}
+
+let mut storage : Storage<(),str,Puppy> = Storage::new();
+let mut reduction : Reduction<(),Puppy,Toys> = Reduction::new(
+  &storage,
+  2,
+  |puppy: &Puppy, _| Some(puppy.toys),
+  |toys: &[Toys], _| Some(Toys {
+    bones: toys.iter().map(|toys| toys.bones).sum::<u64>(),
+    tennis_balls: toys.iter().map(|toys| toys.tennis_balls).sum::<u64>(),
+    squeaks: toys.iter().map(|toys| toys.squeaks).sum::<u64>(),
+  })
+);
+
+storage.add(Puppy {
+  name: "Lazy".to_string(),
+  toys: Toys { bones: 3, tennis_balls: 0, squeaks: 1 }
+});
+
+storage.add(Puppy {
+  name: "Toby".to_string(),
+  toys: Toys { bones: 0, tennis_balls: 9, squeaks: 0 }
+});
+
+storage.add(Puppy {
+  name: "Ralph".to_string(),
+  toys: Toys { bones: 0, tennis_balls: 0, squeaks: 3 }
+});
+
+storage.add(Puppy {
+  name: "Larry".to_string(),
+  toys: Toys { bones: 1, tennis_balls: 0, squeaks: 2 }
+});
+
+assert_eq!(
+  &Toys { bones: 4, tennis_balls: 9, squeaks: 6 },
+  reduction.reduce(&storage).unwrap()
 );
 
 ```
