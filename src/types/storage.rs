@@ -235,6 +235,7 @@ where
         }
 
         self.dirty.sort_unstable();
+        self.dirty.dedup();
 
         for idx in self.dirty.iter().rev() {
             if !self.chunks[*idx].is_empty() {
