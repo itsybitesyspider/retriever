@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -e
+
+# Run tests with all features
+cargo test --all-features
+cargo test --doc --all-features
+cargo test --benches --all-features
+
+# Run tests with no features
+cargo test
+cargo test --doc
+cargo test --benches
+
+# Run tests with some features
+# If any other combination ever fails after the above passes, leave it here.
+
+# Run examples
+cargo run --example count_records
+
+echo -e "\033[1;32mSUCCESS\033[0m"

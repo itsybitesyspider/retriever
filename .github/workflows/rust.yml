@@ -10,6 +10,6 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Build
-      run: cargo build --verbose
+      run: ./bin/build
     - name: Run tests
-      run: cargo test --verbose
+      run: ./bin/test
