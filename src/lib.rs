@@ -835,9 +835,9 @@ mod test {
 
     #[test]
     fn test_duplicate_clean() {
-        let mut storage: Storage<u64,u64,X> = Storage::new();
+        let mut storage: Storage<u64, u64, X> = Storage::new();
 
-        storage.add(X(0,0));
+        storage.add(X(0, 0));
 
         storage.entry(&ID.chunk(0).item(0));
         storage.remove(&ID.chunk(0).item(0), std::mem::drop);
