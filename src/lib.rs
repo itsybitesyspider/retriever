@@ -840,7 +840,7 @@ mod test {
         storage.add(X(0,0));
 
         storage.entry(&ID.chunk(0).item(0));
-        storage.remove(&ID.chunk(0).item(0));
+        storage.remove(&ID.chunk(0).item(0), std::mem::drop);
 
         storage.validate();
     }
