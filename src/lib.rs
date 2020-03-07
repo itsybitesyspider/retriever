@@ -5,6 +5,7 @@
 //!
 //! [![Crates.io](https://img.shields.io/crates/v/retriever.svg)](https://crates.io/crates/retriever)
 //! [![Docs.rs](https://docs.rs/retriever/badge.svg)](https://docs.rs/retriever/latest/)
+//! [![GitHub Actions](https://github.com/itsybitesyspider/retriever/workflows/Tests/badge.svg)](https://github.com/itsybitesyspider/retriever)
 //!
 //! # What is it?
 //!
