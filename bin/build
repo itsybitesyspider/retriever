@@ -8,6 +8,6 @@ cargo fmt -- --check
 cargo readme > .README.md
 diff README.md .README.md
 
-cargo build
+cargo build --all-features --quiet
 
 echo -e "\033[1;32mSUCCESS\033[0m"

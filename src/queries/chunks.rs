@@ -25,35 +25,35 @@ use std::ops::RangeInclusive;
 pub struct Chunks<A>(pub A);
 
 macro_rules! common_chunk_idxs_impl {
-  () => {
-    fn chunk_idxs(&self, storage: &Storage<ChunkKey, ItemKey, Element>) -> Self::ChunkIdxSet {
-      self.0
-        .iter()
-        .filter_map(|x| storage.internal_idx_of(x.borrow()))
-        .collect()
-    }
-  }
+    () => {
+        fn chunk_idxs(&self, storage: &Storage<ChunkKey, ItemKey, Element>) -> Self::ChunkIdxSet {
+            self.0
+                .iter()
+                .filter_map(|x| storage.internal_idx_of(x.borrow()))
+                .collect()
+        }
+    };
 }
 
 macro_rules! common_item_idxs_impl {
-  () => {
-    fn item_idxs(
-      &self,
-      _chunk_key: &ChunkKey,
-      chunk_storage: &ChunkStorage<ChunkKey, ItemKey, Element>,
-    ) -> Self::ItemIdxSet {
-      IdxRange(0..chunk_storage.len())
-    }
-  }
+    () => {
+        fn item_idxs(
+            &self,
+            _chunk_key: &ChunkKey,
+            chunk_storage: &ChunkStorage<ChunkKey, ItemKey, Element>,
+        ) -> Self::ItemIdxSet {
+            IdxRange(0..chunk_storage.len())
+        }
+    };
 }
 
 macro_rules! common_test_impl {
-  () => {
-    #[inline(always)]
-    fn test(&self, _element: &Element) -> bool {
-      true
-    }
-  }
+    () => {
+        #[inline(always)]
+        fn test(&self, _element: &Element) -> bool {
+            true
+        }
+    };
 }
 
 impl<Q, ChunkKey, ItemKey, Element> Query<ChunkKey, ItemKey, Element> for Chunks<Vec<Q>>
