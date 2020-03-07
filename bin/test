@@ -17,4 +17,7 @@ cargo test --benches
 # Run examples
 cargo run --example count_records
 
+# Fail on Warning
+RUSTFLAGS="${RUSTFLAGS} -D warnings" cargo check --all-features
+
 echo -e "\033[1;32mSUCCESS\033[0m"

@@ -2,7 +2,7 @@ use crate::traits::idxset::IdxSet;
 use std::iter::{once, Once};
 use std::ops::Range;
 
-pub(crate) const BITS: usize = (std::mem::size_of::<usize>() * 8);
+pub(crate) const BITS: usize = std::mem::size_of::<usize>() * 8;
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(super) enum SortOrder {
