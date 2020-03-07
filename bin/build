@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
-cargo check --all-features
+cargo check --all-features --quiet
 cargo doc --all-features
-cargo fmt -- --check
-
-cargo readme > .README.md
-diff README.md .README.md
-
 cargo build --all-features --quiet
 
 echo -e "\033[1;32mSUCCESS\033[0m"

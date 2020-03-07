@@ -17,7 +17,14 @@ cargo test --benches
 # Run examples
 cargo run --example count_records
 
-# Fail on Warning
+# Fail syntax warnings
 RUSTFLAGS="${RUSTFLAGS} -D warnings" cargo check --all-features
+
+# Fail on bad cargo fmt
+cargo fmt -- --check
+
+# Fail if README isn't up-to-date
+cargo readme > .README.md
+diff README.md .README.md
 
 echo -e "\033[1;32mSUCCESS\033[0m"
