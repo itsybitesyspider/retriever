@@ -485,7 +485,7 @@ where
     }
 }
 
-impl<'a, K, T, S> KeySet<'a, K> for HashSet<T, S>
+impl<'a, K, T, S: 'a> KeySet<'a, K> for HashSet<T, S>
 where
     T: Clone + Borrow<K> + 'a,
     K: ToOwned<Owned = T> + ?Sized + 'a,
