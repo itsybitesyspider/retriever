@@ -95,9 +95,8 @@ where
     where
         R: Debug,
     {
-        self.get().or_else(|| {
-            panic!("retriever: Entry::or_panic(): {:?} doesn't exist",&self.id)
-        });
+        self.get()
+            .or_else(|| panic!("retriever: Entry::or_panic(): {:?} doesn't exist", &self.id));
 
         self
     }

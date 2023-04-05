@@ -42,7 +42,6 @@ impl IdxSet for IdxRange {
     }
 }
 
-
 #[cfg(test)]
 mod test {
     use super::*;
