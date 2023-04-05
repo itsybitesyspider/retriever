@@ -28,11 +28,42 @@ impl IdxSet for IdxRange {
     }
 
     fn size(&self) -> usize {
-        ((self.0.end - 1) / crate::bits::bitfield::BITS + 1)
-            - self.0.start / crate::bits::bitfield::BITS
+        if self.0.end <= self.0.start {
+            0
+        } else {
+            let bitfield_end = (self.0.end - 1) / crate::bits::bitfield::BITS + 1;
+            let bitfield_start = self.0.start / crate::bits::bitfield::BITS;
+            bitfield_end - bitfield_start
+        }
     }
 
     fn intersect(&self, idx: &Bitfield) -> Bitfield {
         (*idx).clip(&self.0)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_size_of_zero_length_idxrange() {
+        let zero_range = IdxRange(0..0);
+
+        assert_eq!(zero_range.size(), 0);
+    }
+
+    #[test]
+    fn test_size_of_single_length_idxrange() {
+        let zero_range = IdxRange(0..1);
+
+        assert_eq!(zero_range.size(), 1);
+    }
+
+    #[test]
+    fn test_size_of_short_idxrange() {
+        let zero_range = IdxRange(0..7);
+
+        assert_eq!(zero_range.size(), 1);
     }
 }
