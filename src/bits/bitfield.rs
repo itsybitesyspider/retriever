@@ -259,7 +259,7 @@ mod test {
     fn test_from_range() {
         for _ in 0..1000 {
             let range =
-                rand::thread_rng().gen_range(0, 1000)..rand::thread_rng().gen_range(0, 10000);
+                rand::thread_rng().gen_range(0..1000)..rand::thread_rng().gen_range(0..10000);
             let mut ranger = range.clone();
 
             let mut bits = Vec::new();
@@ -289,7 +289,7 @@ mod test {
     fn test_from_range_rev() {
         for _ in 0..1000 {
             let range =
-                rand::thread_rng().gen_range(0, 1000)..rand::thread_rng().gen_range(0, 10000);
+                rand::thread_rng().gen_range(0..1000)..rand::thread_rng().gen_range(0..10000);
             let mut ranger = range.clone();
 
             let mut bits = Vec::new();
@@ -384,7 +384,7 @@ mod test {
         h.insert(57602);
 
         for _ in 0..16 {
-            let x = rand::thread_rng().gen_range(57600, 57600 + BITS);
+            let x = rand::thread_rng().gen_range(57600..57600 + BITS);
             b.set(x);
             h.insert(x);
         }
