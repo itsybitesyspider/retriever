@@ -738,21 +738,21 @@ mod test {
         let k = 100_000;
 
         for i in 0..k {
-            storage.add(X(i, rand::thread_rng().gen_range(0, k / 10)));
+            storage.add(X(i, rand::thread_rng().gen_range(0..k / 10)));
         }
 
         for _ in 0..k {
-            let id = rand::thread_rng().gen_range(0, k);
+            let id = rand::thread_rng().gen_range(0..k);
             storage
                 .entry(&X(id, 0))
                 .and_modify(|x| {
-                    x.1 = rand::thread_rng().gen_range(0, k / 10);
+                    x.1 = rand::thread_rng().gen_range(0..k / 10);
                 })
                 .or_panic();
 
             storage
                 .query(
-                    &Everything.matching(&index, Cow::Owned(rand::thread_rng().gen_range(0, 10))),
+                    &Everything.matching(&index, Cow::Owned(rand::thread_rng().gen_range(0..10))),
                 )
                 .count();
             reduction.reduce(&storage);

@@ -419,7 +419,7 @@ mod test {
         let mut h = BTreeSet::new();
 
         for _ in 0..1000 {
-            let x = rand::thread_rng().gen_range(0, 10_000);
+            let x = rand::thread_rng().gen_range(0..10_000);
             b.set(x);
             h.insert(x);
         }
